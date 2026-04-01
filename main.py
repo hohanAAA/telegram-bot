@@ -2,7 +2,7 @@ import asyncio
 import random
 import os
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import CommandStart
 
 TOKEN = os.getenv("TOKEN")
@@ -16,10 +16,10 @@ CARD = "2202208881057849"
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# ===== ХРАНИЛИЩЕ ФАЙЛОВ =====
+# ===== ФАЙЛЫ =====
 FILES = []
 
-# ===== КНОПКИ =====
+# ===== МЕНЮ =====
 menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="📄 1 вариант — 100₽", callback_data="buy_1")],
     [InlineKeyboardButton(text="📚 30 вариантов — 500₽", callback_data="buy_30")],
@@ -37,17 +37,8 @@ async def start(message: types.Message):
         reply_markup=menu,
         parse_mode="HTML"
     )
-    await message.answer(
-        "📘 <b>Магазин ОГЭ</b>\n\n"
-        "🎯 Готовые варианты + ответы\n"
-        "⚡ Быстро перед экзаменом\n\n"
-        "👇 Выбери тариф:",
-        reply_markup=ReplyKeyboardRemove(),  # УБИРАЕТ СТАРЫЕ КНОПКИ
-        parse_mode="HTML"
-    )
-    await message.answer(" ", reply_markup=menu)
 
-# ===== СОХРАНЕНИЕ ФАЙЛОВ (ТОЛЬКО ТЫ) =====
+# ===== СОХРАНЕНИЕ ФАЙЛОВ (ТЫ ОТПРАВЛЯЕШЬ БОТУ PDF) =====
 @dp.message(lambda m: m.document)
 async def save_file(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -68,56 +59,59 @@ async def buy(callback: types.CallbackQuery):
 
     if callback.data == "buy_1":
         text = f"""
-📄 <b>1 вариант</b>
+📄 <b>1 вариант ОГЭ</b>
 💰 100₽
 
-⚡ Быстрое решение
+⚡ Быстрое решение перед экзаменом
 
-📈 Купили: {buyers}
-⏳ Осталось: {left}
+📈 Купили сегодня: {buyers}
+⏳ Осталось мест: {left}
 
 💳 <code>{CARD}</code>
 
-Нажми после оплаты 👇
+После оплаты нажми 👇
 """
 
     elif callback.data == "buy_30":
         text = f"""
-📚 <b>30 вариантов</b>
+📚 <b>30 вариантов ОГЭ</b>
 💰 500₽
 
-🔥 Самый популярный
+🔥 Самый популярный тариф
 
-📈 Купили: {buyers}
-⏳ Осталось: {left}
+📈 Купили сегодня: {buyers}
+⏳ Осталось мест: {left}
 
 💳 <code>{CARD}</code>
 
-Нажми после оплаты 👇
+После оплаты нажми 👇
 """
 
     else:
         text = f"""
-🔥 <b>Полный доступ</b>
+🔥 <b>Полный доступ ОГЭ</b>
 💰 2450₽
 
-👥 Скиньтесь классом — выйдет дешево
+📦 Что внутри:
+• Все варианты  
+• Все предметы  
+• Готовые ответы  
 
-📦 Все предметы + ответы
+👥 <b>Скиньтесь классом</b> — выйдет по 100–200₽ с человека 😏
 
-📈 Купили: {buyers}
-⏳ Осталось: {left}
+📈 Купили сегодня: {buyers}
+⏳ Осталось мест: {left}
 
 💳 <code>{CARD}</code>
 
-Нажми после оплаты 👇
+После оплаты нажми 👇
 """
 
     await callback.message.answer(text, reply_markup=kb, parse_mode="HTML")
 
     asyncio.create_task(remind_later(callback.from_user.id))
 
-# ===== ОПЛАТИЛ =====
+# ===== НАЖАЛ "Я ОПЛАТИЛ" =====
 @dp.callback_query(lambda c: c.data.startswith("paid_"))
 async def paid(callback: types.CallbackQuery):
     user_id = callback.from_user.id
@@ -126,13 +120,19 @@ async def paid(callback: types.CallbackQuery):
         [InlineKeyboardButton(text="💸 Выдать доступ", callback_data=f"give_{user_id}")]
     ])
 
+    # тебе уведомление
     await bot.send_message(
         ADMIN_ID,
-        f"💰 Оплата от {user_id}",
+        f"💰 Оплата от пользователя: {user_id}",
         reply_markup=kb
     )
 
-    await callback.message.answer("⏳ Проверяю оплату...")
+    # пользователю
+    await callback.message.answer(
+        "⏳ <b>Ожидайте проверку оплаты</b>\n\n"
+        "Обычно занимает 1–5 минут",
+        parse_mode="HTML"
+    )
 
 # ===== ВЫДАЧА =====
 @dp.callback_query(lambda c: c.data.startswith("give_"))
@@ -143,7 +143,7 @@ async def give(callback: types.CallbackQuery):
     user_id = int(callback.data.split("_")[1])
 
     if not FILES:
-        await callback.message.answer("❌ Нет файлов")
+        await callback.message.answer("❌ Нет загруженных файлов")
         return
 
     for file_id in FILES:
@@ -153,7 +153,7 @@ async def give(callback: types.CallbackQuery):
             protect_content=True
         )
 
-    await callback.message.answer("✅ Выдано")
+    await callback.message.answer("✅ Доступ выдан")
 
 # ===== ДОЖИМ =====
 async def remind_later(user_id):
