@@ -34,6 +34,14 @@ async def start(message: types.Message):
         "🎯 Готовые варианты + ответы\n"
         "⚡ Быстро перед экзаменом\n\n"
         "👇 Выбери тариф:",
+        reply_markup=menu,
+        parse_mode="HTML"
+    )
+    await message.answer(
+        "📘 <b>Магазин ОГЭ</b>\n\n"
+        "🎯 Готовые варианты + ответы\n"
+        "⚡ Быстро перед экзаменом\n\n"
+        "👇 Выбери тариф:",
         reply_markup=ReplyKeyboardRemove(),  # УБИРАЕТ СТАРЫЕ КНОПКИ
         parse_mode="HTML"
     )
