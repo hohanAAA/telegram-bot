@@ -19,7 +19,7 @@ dp = Dispatcher()
 # ===== ХРАНИЛИЩЕ ФАЙЛОВ =====
 FILES = []
 
-# ===== МЕНЮ =====
+# ===== КНОПКИ =====
 menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="📄 1 вариант — 100₽", callback_data="buy_1")],
     [InlineKeyboardButton(text="📚 30 вариантов — 500₽", callback_data="buy_30")],
@@ -34,68 +34,76 @@ async def start(message: types.Message):
         "🎯 Готовые варианты + ответы\n"
         "⚡ Быстро перед экзаменом\n\n"
         "👇 Выбери тариф:",
-        reply_markup=ReplyKeyboardRemove(),
+        reply_markup=ReplyKeyboardRemove(),  # УБИРАЕТ СТАРЫЕ КНОПКИ
         parse_mode="HTML"
     )
     await message.answer(" ", reply_markup=menu)
 
-# ===== ЗАГРУЗКА ФАЙЛОВ (ТОЛЬКО ТЫ) =====
+# ===== СОХРАНЕНИЕ ФАЙЛОВ (ТОЛЬКО ТЫ) =====
 @dp.message(lambda m: m.document)
 async def save_file(message: types.Message):
     if message.from_user.id != ADMIN_ID:
         return
 
-    file_id = message.document.file_id
-    FILES.append(file_id)
-
-    await message.answer("✅ Файл добавлен")
+    FILES.append(message.document.file_id)
+    await message.answer("✅ Файл сохранен")
 
 # ===== ПОКУПКА =====
 @dp.callback_query(lambda c: c.data.startswith("buy_"))
 async def buy(callback: types.CallbackQuery):
-    buyers_today = random.randint(12, 37)
-    left = random.randint(3, 7)
+    buyers = random.randint(10, 40)
+    left = random.randint(2, 7)
 
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Я оплатил", callback_data=f"paid_{callback.data}")]
     ])
 
     if callback.data == "buy_1":
-        text = (
-            "📄 <b>1 вариант ОГЭ</b>\n"
-            "💰 Цена: 100₽\n\n"
-            "⚡ Быстрое решение перед экзаменом\n\n"
-            f"📈 Купили сегодня: {buyers_today}\n"
-            f"⏳ Осталось: {left} мест\n\n"
-            f"💳 Оплата:\n<code>{CARD}</code>\n\n"
-            "После оплаты нажми кнопку 👇"
-        )
+        text = f"""
+📄 <b>1 вариант</b>
+💰 100₽
+
+⚡ Быстрое решение
+
+📈 Купили: {buyers}
+⏳ Осталось: {left}
+
+💳 <code>{CARD}</code>
+
+Нажми после оплаты 👇
+"""
 
     elif callback.data == "buy_30":
-        text = (
-            "📚 <b>30 вариантов ОГЭ</b>\n"
-            "💰 Цена: 500₽\n\n"
-            "🔥 Самый выгодный пакет\n\n"
-            f"📈 Купили сегодня: {buyers_today}\n"
-            f"⏳ Осталось: {left} мест\n\n"
-            f"💳 Оплата:\n<code>{CARD}</code>\n\n"
-            "После оплаты нажми кнопку 👇"
-        )
+        text = f"""
+📚 <b>30 вариантов</b>
+💰 500₽
+
+🔥 Самый популярный
+
+📈 Купили: {buyers}
+⏳ Осталось: {left}
+
+💳 <code>{CARD}</code>
+
+Нажми после оплаты 👇
+"""
 
     else:
-        text = (
-            "🔥 <b>Полный доступ ко всем вариантам</b>\n"
-            "💰 Цена: 2450₽\n\n"
-            "👥 Можно скинуться классом (100–200₽ с человека)\n\n"
-            "📦 Внутри:\n"
-            "• Все предметы\n"
-            "• Все варианты\n"
-            "• Ответы\n\n"
-            f"📈 Купили сегодня: {buyers_today}\n"
-            f"⏳ Осталось: {left} мест\n\n"
-            f"💳 Оплата:\n<code>{CARD}</code>\n\n"
-            "После оплаты нажми кнопку 👇"
-        )
+        text = f"""
+🔥 <b>Полный доступ</b>
+💰 2450₽
+
+👥 Скиньтесь классом — выйдет дешево
+
+📦 Все предметы + ответы
+
+📈 Купили: {buyers}
+⏳ Осталось: {left}
+
+💳 <code>{CARD}</code>
+
+Нажми после оплаты 👇
+"""
 
     await callback.message.answer(text, reply_markup=kb, parse_mode="HTML")
 
@@ -112,7 +120,7 @@ async def paid(callback: types.CallbackQuery):
 
     await bot.send_message(
         ADMIN_ID,
-        f"💰 Оплата от пользователя: {user_id}",
+        f"💰 Оплата от {user_id}",
         reply_markup=kb
     )
 
@@ -127,7 +135,7 @@ async def give(callback: types.CallbackQuery):
     user_id = int(callback.data.split("_")[1])
 
     if not FILES:
-        await callback.message.answer("❌ Файлы не загружены")
+        await callback.message.answer("❌ Нет файлов")
         return
 
     for file_id in FILES:
@@ -137,7 +145,7 @@ async def give(callback: types.CallbackQuery):
             protect_content=True
         )
 
-    await callback.message.answer("✅ Доступ выдан")
+    await callback.message.answer("✅ Выдано")
 
 # ===== ДОЖИМ =====
 async def remind_later(user_id):
