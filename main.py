@@ -1,4 +1,4 @@
-[06.04.2026 19:49] hohan! AAA: import asyncio
+import asyncio
 import random
 import os
 from aiogram import Bot, Dispatcher, types
