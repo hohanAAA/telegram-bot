@@ -8,10 +8,10 @@ from aiogram.filters import CommandStart
 
 TOKEN = os.getenv("TOKEN")
 
-ADMIN_ID = 1780613456
-CARD = "2202208881057849"
-BOT_USERNAME = "BoostSkoopiBot"
-SUPPORT = "@rebuttq"
+ADMIN_ID = 123456789
+CARD = "0000 0000 0000 0000"
+BOT_USERNAME = "your_bot"
+SUPPORT = "@your_username"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -41,7 +41,7 @@ def add_user(user_id, ref_id=None):
             cursor.execute("UPDATE users SET invited = invited + 1 WHERE user_id=?", (ref_id,))
             conn.commit()
 
-# ===== ДАННЫЕ =====
+# ===== ПОЛУЧЕНИЕ =====
 def get_invited(user_id):
     cursor.execute("SELECT invited FROM users WHERE user_id=?", (user_id,))
     row = cursor.fetchone()
@@ -55,7 +55,6 @@ def get_prices(user_id):
     base30 = 700
     basefull = 2450
 
-    # скидка на полный доступ
     discount = min(max(invited - 1, 0) * 200, 1000)
 
     price1 = base1
@@ -64,7 +63,6 @@ def get_prices(user_id):
 
     extra = max(invited - 6, 0)
 
-    # бонусы
     if extra >= 10:
         price1 = int(price1 * 0.9)
         price30 = int(price30 * 0.9)
@@ -83,7 +81,7 @@ def main_menu():
     ])
 
 def buy_menu(user_id):
-    p1, p30, pf, *_ = get_prices(user_id)
+    p1, p30, pf, _, _, _ = get_prices(user_id)
 
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=f"📄 1 вариант — {p1}₽", callback_data="b1")],
@@ -111,22 +109,24 @@ async def start(message: types.Message):
 
 # ===== СКРИН =====
 @dp.message(lambda m: m.photo)
-async def photo(message: types.Message):
+async def handle_photo(message: types.Message):
     user_id = message.from_user.id
 
     if user_id in pending:
+        photo = message.photo[-1].file_id
+
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Выдать доступ", callback_data=f"give_{user_id}")]
+        ])
+
         await bot.send_photo(
             ADMIN_ID,
-            message.photo[-1].file_id,
+            photo,
             caption=f"💰 Оплата от {user_id}",
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [InlineKeyboardButton(text="✅ Выдать", callback_data=f"give_{user_id}")]
-                ]
-            )
+            reply_markup=kb
         )
 
-        await message.answer("⏳ Ожидайте проверки администратора")
+        await message.answer("⏳ Ожидайте проверку администратора")
         del pending[user_id]
 
 # ===== CALLBACK =====
@@ -139,23 +139,31 @@ async def cb(callback: types.CallbackQuery):
 
     elif callback.data == "ref":
         p1, p30, pf, invited, extra, vip = get_prices(user_id)
-
         link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
- text = f"👥 Приглашено: {invited}\n💸 Макс скидка: 1000₽\n\n"
+
+        text = (
+            f"👥 Приглашено: {invited}\n"
+f"💸 Макс скидка: 1000₽\n\n"
+        )
 
         if invited >= 6:
-            text += f"🎯 До бонуса: {extra}/10\n👑 До VIP: {extra}/20\n"
+            text += f"🎯 До бонуса: {extra}/10\n"
+            text += f"👑 До VIP: {extra}/20\n"
 
         if extra >= 10:
             text += "\n🎁 Скидка 10% активна"
+
         if vip:
             text += "\n👑 VIP статус активен"
 
         text += f"\n\n🔗 {link}"
 
-        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]]
-        ))
+        await callback.message.edit_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]]
+            )
+        )
 
     elif callback.data == "support":
         await callback.message.edit_text(
@@ -169,7 +177,7 @@ async def cb(callback: types.CallbackQuery):
         await callback.message.edit_text("📘 Магазин ОГЭ", reply_markup=main_menu())
 
     elif callback.data in ["b1", "b30", "bfull"]:
-        p1, p30, pf, *_ = get_prices(user_id)
+        p1, p30, pf, _, _, _ = get_prices(user_id)
 
         if callback.data == "b1":
             price = p1
