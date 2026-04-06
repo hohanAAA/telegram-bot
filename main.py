@@ -141,7 +141,7 @@ async def cb(callback: types.CallbackQuery):
         p1, p30, pf, invited, extra, vip = get_prices(user_id)
 
         link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
-[06.04.2026 21:13] hohan! AAA: text = f"👥 Приглашено: {invited}\n💸 Макс скидка: 1000₽\n\n"
+ text = f"👥 Приглашено: {invited}\n💸 Макс скидка: 1000₽\n\n"
 
         if invited >= 6:
             text += f"🎯 До бонуса: {extra}/10\n👑 До VIP: {extra}/20\n"
