@@ -8,10 +8,10 @@ from aiogram.filters import CommandStart
 
 TOKEN = os.getenv("TOKEN")
 
-ADMIN_ID = 123456789
-CARD = "0000 0000 0000 0000"
-BOT_USERNAME = "your_bot"
-SUPPORT = "@your_username"
+ADMIN_ID = 1780613456
+CARD = "2202208881057849"
+BOT_USERNAME = "BoostSkoopiBot"
+SUPPORT = "@rebuttq"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
