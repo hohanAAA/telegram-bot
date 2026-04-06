@@ -1,6 +1,5 @@
 import asyncio
 import os
-import random
 import sqlite3
 
 from aiogram import Bot, Dispatcher, types
@@ -9,10 +8,10 @@ from aiogram.filters import CommandStart
 
 TOKEN = os.getenv("TOKEN")
 
-ADMIN_ID = 123456789
-CARD = "0000 0000 0000 0000"
-BOT_USERNAME = "your_bot"
-SUPPORT = "@your_username"
+ADMIN_ID = 1780613456
+CARD = "2202208881057849"
+BOT_USERNAME = "BoostSkoopiBot"
+SUPPORT = "@rebuttq"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -27,18 +26,14 @@ CREATE TABLE IF NOT EXISTS users (
     invited INTEGER DEFAULT 0
 )
 """)
-
 conn.commit()
 
-FILES = []
 pending = {}
 
 # ===== ДОБАВЛЕНИЕ =====
 def add_user(user_id, ref_id=None):
     cursor.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
-    user = cursor.fetchone()
-
-    if not user:
+    if not cursor.fetchone():
         cursor.execute("INSERT INTO users (user_id) VALUES (?)", (user_id,))
         conn.commit()
 
@@ -46,7 +41,7 @@ def add_user(user_id, ref_id=None):
             cursor.execute("UPDATE users SET invited = invited + 1 WHERE user_id=?", (ref_id,))
             conn.commit()
 
-# ===== ПОЛУЧЕНИЕ ПРИГЛАШЕННЫХ =====
+# ===== ДАННЫЕ =====
 def get_invited(user_id):
     cursor.execute("SELECT invited FROM users WHERE user_id=?", (user_id,))
     row = cursor.fetchone()
@@ -56,51 +51,46 @@ def get_invited(user_id):
 def get_prices(user_id):
     invited = get_invited(user_id)
 
-    base_1 = 250
-    base_30 = 700
-    base_full = 2450
+    base1 = 250
+    base30 = 700
+    basefull = 2450
 
-    discount_full = min(max(invited - 1, 0) * 200, 1000)
+    # скидка на полный доступ
+    discount = min(max(invited - 1, 0) * 200, 1000)
 
-    price_30 = base_30 - 100 if invited >= 1 else base_30
-    price_full = base_full - discount_full
+    price1 = base1
+    price30 = base30 - 100 if invited >= 1 else base30
+    pricefull = basefull - discount
 
     extra = max(invited - 6, 0)
 
-    bonus = 0
-    vip = False
-
+    # бонусы
     if extra >= 10:
-        bonus = 0.10
-    if extra >= 20:
-        vip = True
+        price1 = int(price1 * 0.9)
+        price30 = int(price30 * 0.9)
+        pricefull = int(pricefull * 0.9)
 
-    if bonus > 0:
-        price_1 = int(base_1 * (1 - bonus))
-        price_30 = int(price_30 * (1 - bonus))
-        price_full = int(price_full * (1 - bonus))
-    else:
-        price_1 = base_1
+    vip = extra >= 20
 
-    return price_1, price_30, price_full, invited, extra, bonus, vip
+    return price1, price30, pricefull, invited, extra, vip
 
 # ===== МЕНЮ =====
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🛒 Купить варианты", callback_data="menu_buy")],
-        [InlineKeyboardButton(text="👥 Мои приглашённые", callback_data="menu_ref")],
-        [InlineKeyboardButton(text="📞 Поддержка", callback_data="menu_support")]
+        [InlineKeyboardButton(text="🛒 Купить", callback_data="buy")],
+        [InlineKeyboardButton(text="👥 Рефералы", callback_data="ref")],
+        [InlineKeyboardButton(text="📞 Поддержка", callback_data="support")]
     ])
 
 def buy_menu(user_id):
     p1, p30, pf, *_ = get_prices(user_id)
 
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"📄 1 вариант — {p1}₽", callback_data="buy_1")],
-        [InlineKeyboardButton(text=f"📚 30 вариантов — {p30}₽", callback_data="buy_30")],
-        [InlineKeyboardButton(text=f"🔥 Полный доступ — {pf}₽", callback_data="buy_full")],
-        [InlineKeyboardButton(text="⭐️ Оплатить (если доступно)", callback_data="stars_full")],
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data="menu_back")]
+        [InlineKeyboardButton(text=f"📄 1 вариант — {p1}₽", callback_data="b1")],
+        [InlineKeyboardButton(text=f"📚 30 вариантов — {p30}₽", callback_data="b30")],
+        [InlineKeyboardButton(text=f"🔥 Полный доступ — {pf}₽", callback_data="bfull")],
+        [InlineKeyboardButton(text="⭐️ Оплата (если есть)", callback_data="stars")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
     ])
 
 # ===== СТАРТ =====
@@ -117,77 +107,74 @@ async def start(message: types.Message):
 
     add_user(message.from_user.id, ref_id)
 
-    await message.answer("📘 Магазин ОГЭ\n\nВыбери действие:", reply_markup=main_menu())
+    await message.answer("📘 Магазин ОГЭ", reply_markup=main_menu())
 
 # ===== СКРИН =====
 @dp.message(lambda m: m.photo)
-async def handle_photo(message: types.Message):
+async def photo(message: types.Message):
     user_id = message.from_user.id
 
     if user_id in pending:
-        photo = message.photo[-1].file_id
-
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Выдать доступ", callback_data=f"give_{user_id}")]
-        ])
-
         await bot.send_photo(
             ADMIN_ID,
-            photo,
+            message.photo[-1].file_id,
             caption=f"💰 Оплата от {user_id}",
-            reply_markup=kb
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(text="✅ Выдать", callback_data=f"give_{user_id}")]
+                ]
+            )
         )
 
-        await message.answer("⏳ Ожидайте проверку")
+        await message.answer("⏳ Ожидайте проверки администратора")
         del pending[user_id]
 
 # ===== CALLBACK =====
 @dp.callback_query()
-async def callbacks(callback: types.CallbackQuery):
+async def cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
 
-    if callback.data == "menu_buy":
-        await callback.message.
-[06.04.2026 20:55] hohan! AAA: edit_text("🛒 Выбери тариф:", reply_markup=buy_menu(user_id))
+    if callback.data == "buy":
+        await callback.message.edit_text("Выбери тариф:", reply_markup=buy_menu(user_id))
 
-    elif callback.data == "menu_ref":
-        p1, p30, pf, invited, extra, bonus, vip = get_prices(user_id)
+    elif callback.data == "ref":
+        p1, p30, pf, invited, extra, vip = get_prices(user_id)
+
         link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
-
-        text = f"👥 Приглашено: {invited}\n💸 Макс скидка: 1000₽\n\n"
+[06.04.2026 21:13] hohan! AAA: text = f"👥 Приглашено: {invited}\n💸 Макс скидка: 1000₽\n\n"
 
         if invited >= 6:
-            text += f"🎯 До -10%: {extra}/10\n👑 До VIP: {extra}/20\n\n"
+            text += f"🎯 До бонуса: {extra}/10\n👑 До VIP: {extra}/20\n"
 
-        if bonus > 0:
-            text += "🎁 Активна скидка 10%\n"
+        if extra >= 10:
+            text += "\n🎁 Скидка 10% активна"
         if vip:
-            text += "👑 VIP активен\n"
+            text += "\n👑 VIP статус активен"
 
-        text += f"\n🔗 {link}"
+        text += f"\n\n🔗 {link}"
 
         await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="menu_back")]]
+            inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]]
         ))
 
-    elif callback.data == "menu_support":
+    elif callback.data == "support":
         await callback.message.edit_text(
-            f"📞 Поддержка: {SUPPORT}",
+            f"📞 {SUPPORT}",
             reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="menu_back")]]
+                inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]]
             )
         )
 
-    elif callback.data == "menu_back":
-        await callback.message.edit_text("📘 Магазин ОГЭ\n\nВыбери действие:", reply_markup=main_menu())
+    elif callback.data == "back":
+        await callback.message.edit_text("📘 Магазин ОГЭ", reply_markup=main_menu())
 
-    elif callback.data.startswith("buy_"):
+    elif callback.data in ["b1", "b30", "bfull"]:
         p1, p30, pf, *_ = get_prices(user_id)
 
-        if callback.data == "buy_1":
+        if callback.data == "b1":
             price = p1
             name = "1 вариант"
-        elif callback.data == "buy_30":
+        elif callback.data == "b30":
             price = p30
             name = "30 вариантов"
         else:
@@ -197,9 +184,7 @@ async def callbacks(callback: types.CallbackQuery):
         pending[user_id] = True
 
         await callback.message.answer(
-            f"💰 {name}\n\nЦена: {price}₽\n\n"
-            f"💳 {CARD}\n\n"
-            f"📸 Скиньте скрин оплаты"
+            f"💳 {name}\n\nСумма: {price}₽\n\n{CARD}\n\n📸 Скиньте скрин оплаты"
         )
 
     elif callback.data.startswith("give_"):
@@ -210,15 +195,15 @@ async def callbacks(callback: types.CallbackQuery):
 
         await bot.send_message(uid, "✅ Доступ выдан")
 
-    elif callback.data == "stars_full":
-        prices = [LabeledPrice(label="Полный доступ", amount=2450 * 100)]
+    elif callback.data == "stars":
+        prices = [LabeledPrice(label="Оплата", amount=2450 * 100)]
 
         try:
             await bot.send_invoice(
                 chat_id=user_id,
                 title="Оплата ⭐️",
-                description="Полный доступ",
-                payload=f"stars_{user_id}",
+                description="Доступ",
+                payload="stars",
                 provider_token="",
                 currency="XTR",
                 prices=prices
@@ -226,19 +211,9 @@ async def callbacks(callback: types.CallbackQuery):
         except:
             await callback.message.answer("❌ Звёзды недоступны")
 
-# ===== УСПЕХ ⭐️ =====
-@dp.pre_checkout_query()
-async def pre_checkout(pre_checkout_query: types.PreCheckoutQuery):
-    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
-
-@dp.message(lambda m: m.successful_payment)
-async def success_payment(message: types.Message):
-    await message.answer("✅ Оплата прошла!")
-
 # ===== ЗАПУСК =====
 async def main():
     await dp.start_polling(bot)
 
 if name == "__main__":
     asyncio.run(main())
-  
