@@ -8,8 +8,8 @@ from aiogram.filters import CommandStart
 
 TOKEN = os.getenv("TOKEN")
 
-ADMIN_ID = 123456789
-BOT_USERNAME = "your_bot_username"
+ADMIN_ID = 1780613456
+BOT_USERNAME = "BoostSkoopiBot"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -54,24 +54,23 @@ def get_invited(user_id):
 def get_prices(user_id):
     invited = get_invited(user_id)
 
-    price1 = 250
-    price30 = 700
-    pricefull = 2450
+    p1 = 250
+    p30 = 700
+    pf = 2450
 
-    discount = min(max(invited - 1, 0) * 200, 1000)
-    pricefull -= discount
+    pf -= min(max(invited - 1, 0) * 200, 1000)
 
     if invited >= 1:
-        price30 -= 100
+        p30 -= 100
 
     extra = max(invited - 6, 0)
 
     if extra >= 10:
-        price1 = int(price1 * 0.9)
-        price30 = int(price30 * 0.9)
-        pricefull = int(pricefull * 0.9)
+        p1 = int(p1 * 0.9)
+        p30 = int(p30 * 0.9)
+        pf = int(pf * 0.9)
 
-    return price1, price30, pricefull
+    return p1, p30, pf
 
 # ===== МЕНЮ =====
 def main_menu():
@@ -97,7 +96,7 @@ async def cb(callback: types.CallbackQuery):
 
     # ===== КУПИТЬ =====
     if callback.data == "buy":
-        kb = [[InlineKeyboardButton(text=city, callback_data=f"city_{city}")] for city in CITIES]
+        kb = [[InlineKeyboardButton(text=city, callback_data=f"city|{city}")] for city in CITIES]
 
         await callback.message.edit_text(
             "🌍 Выбери город:",
@@ -105,55 +104,53 @@ async def cb(callback: types.CallbackQuery):
         )
 
     # ===== ГОРОД =====
-    elif callback.data.startswith("city_"):
-        city = callback.data.split("_")[1]
+    elif callback.data.startswith("city|"):
+        city = callback.data.split("|")[1]
 
         subjects = SUBJECTS.copy()
         if city == "Татарстан":
             subjects.append("Татарский язык")
 
-        kb = [[InlineKeyboardButton(text=s, callback_data=f"sub_{city}_{s}")] for s in subjects]
+        kb = [[InlineKeyboardButton(text=s, callback_data=f"sub|{city}|{s}")] for s in subjects]
 
         await callback.message.edit_text(
-            f"📚 Город: {city}\nВыбери предмет:",
+            f"📍 {city}\n\nВыбери предмет:",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
         )
 
     # ===== ПРЕДМЕТ =====
-    elif callback.data.startswith("sub_"):
-        _, city, subject = callback.data.split("_")
+    elif callback.data.startswith("sub|"):
+        _, city, subject = callback.data.split("|")
 
         p1, p30, pf = get_prices(user_id)
 
         kb = [
-            [InlineKeyboardButton(text=f"📄 1 вариант — {p1}₽", callback_data=f"t1_{city}_{subject}")],
-            [InlineKeyboardButton(text=f"📚 30 вариантов — {p30}₽", callback_data=f"t30_{city}_{subject}")],
-            [InlineKeyboardButton(text=f"🔥 Полный доступ — {pf}₽", callback_data=f"tfull_{city}_{subject}")]
+            [InlineKeyboardButton(text=f"📄 1 вариант — {p1}₽", callback_data=f"t1|{city}|{subject}")],
+            [InlineKeyboardButton(text=f"📚 30 вариантов — {p30}₽", callback_data=f"t30|{city}|{subject}")],
+            [InlineKeyboardButton(text=f"🔥 Полный доступ — {pf}₽", callback_data=f"tfull|{city}|{subject}")]
         ]
 
         await callback.message.edit_text(
-            f"📚 {city} | {subject}\nВыбери тариф:",
+            f"📚 {city} | {subject}\n\nВыбери тариф:",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
         )
 
     # ===== 1 ВАРИАНТ =====
-    elif callback.data.startswith("t1_"):
-        _, city, subject = callback.data.
-split("_")
+    elif callback.data.startswith("t1|"):
+        _, city, subject = callback.data.split("|")
 
-        kb = []
-        for i in range(1, 31):
-            kb.append([InlineKeyboardButton(text=f"Вариант {i}", callback_data=f"buy1_{i}")])
+        kb = [
+[InlineKeyboardButton(text=f"Вариант {i}", callback_data=f"buy1|{city}|{subject}|{i}")]
+            for i in range(1, 31)
+        ]
 
         await callback.message.edit_text(
-            f"{city} | {subject}\nВыбери вариант:",
+            f"{city} | {subject}\n\nВыбери вариант:",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
         )
 
     # ===== ПОКУПКА =====
-    elif callback.data.startswith("buy1_") or callback.data.startswith("t30") or callback.data.startswith("tfull"):
-
-        price = 1000  # 10 звёзд (пример)
+    elif callback.data.startswith("buy1|") or callback.data.startswith("t30|") or callback.data.startswith("tfull|"):
 
         await bot.send_invoice(
             chat_id=user_id,
@@ -162,7 +159,7 @@ split("_")
             payload="stars",
             provider_token="",
             currency="XTR",
-            prices=[LabeledPrice(label="Оплата", amount=price)]
+            prices=[LabeledPrice(label="Оплата", amount=1000)]
         )
 
     # ===== РЕФЕРАЛЫ =====
@@ -170,25 +167,26 @@ split("_")
         invited = get_invited(user_id)
         link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
 
-        await callback.message.edit_text(
-            f"👥 Рефералы: {invited}\n\n"
-            "💡 Система:\n"
-            "— 1 человек → скидка 100₽\n"
+        text = (
+            f"👥 Приглашено: {invited}\n\n"
+            "💡 Как работает:\n"
+            "— 1 человек → -100₽\n"
             "— каждый следующий → -200₽\n"
-            "— максимум 1000₽\n\n"
+            "— максимум: 1000₽\n\n"
             "🎁 Бонусы:\n"
             "— 10 человек → скидка 10%\n"
             "— 20 человек → VIP\n\n"
-            f"🔗 Ссылка:\n{link}",
-            reply_markup=main_menu()
+            f"🔗 Ссылка:\n{link}"
         )
+
+        await callback.message.edit_text(text, reply_markup=main_menu())
 
 # ===== ОПЛАТА =====
 @dp.pre_checkout_query()
 async def pre_checkout(pre_checkout_query: types.PreCheckoutQuery):
     await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
-@dp.message(lambda message: message.successful_payment)
+@dp.message(lambda m: m.successful_payment)
 async def success_payment(message: types.Message):
     await message.answer("✅ Оплата прошла!\n\nДоступ выдан")
 
