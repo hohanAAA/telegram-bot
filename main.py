@@ -41,7 +41,7 @@ SUBJECTS = [
 async def check_sub(user_id):
     try:
         member = await bot.get_chat_member(CHANNEL, user_id)
-        return member.status != "left"
+        return member.status in ["member", "administrator", "creator"]
     except:
         return False
 
@@ -62,27 +62,26 @@ def get_user(user_id):
     return row if row else (0, 0)
 
 # ===== СКИДКИ =====
-def calc_price(user_id, base_price):
+def calc_price(user_id, base):
     invited, _ = get_user(user_id)
 
     discount = 0
-
     if invited >= 1:
         discount += 100
-
     if invited > 1:
         discount += (invited - 1) * 200
 
     discount = min(discount, 1000)
 
-    price = base_price - discount
+    price = base - discount
 
     if invited >= 10:
         price = int(price * 0.9)
 
     return max(price, 50)
 
-def get_price_data(data, user_id):
+# ===== ЦЕНЫ =====
+def get_price_data(user_id, data):
     if data.startswith("buy1|"):
         base = 250
     elif data.startswith("t30|"):
@@ -93,7 +92,7 @@ def get_price_data(data, user_id):
         base = 100
 
     final = calc_price(user_id, base)
-    return base, final, final * 100  # stars
+    return base, final
 
 # ===== МЕНЮ =====
 def main_menu():
@@ -130,7 +129,7 @@ async def cb(callback: types.CallbackQuery):
         if await check_sub(user_id):
             await callback.message.edit_text("✅ Подписка подтверждена", reply_markup=main_menu())
         else:
-            await callback.answer("❌ Ты не подписан", show_alert=True)
+            await callback.answer("❌ Не подписан", show_alert=True)
 
     elif callback.data == "buy":
         kb = [[InlineKeyboardButton(text=c, callback_data=f"city|{c}")] for c in CITIES]
@@ -146,7 +145,7 @@ async def cb(callback: types.CallbackQuery):
         kb = []
 
         kb.append([
-            InlineKeyboardButton(text="🔥 Полный доступ (всё)", callback_data=f"tfull|{city}|all")
+            InlineKeyboardButton(text="🔥 Полный доступ", callback_data=f"tfull|{city}|all")
         ])
 
         for s in subs:
@@ -155,23 +154,23 @@ async def cb(callback: types.CallbackQuery):
             ])
 
         await callback.message.edit_text(
-            f"{city}\n\nВыбери предмет или полный доступ:",
+            f"{city}\n\nВыбери предмет:",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
         )
 
     elif callback.data.startswith("sub|"):
         _, city, subject = callback.data.split("|")
 
-        base1, final1, _ = get_price_data(f"buy1|{city}|{subject}", user_id)
-        base30, final30, _ = get_price_data(f"t30|{city}|{subject}", user_id)
+        _, p1 = get_price_data(user_id, f"buy1|{city}|{subject}")
+        _, p30 = get_price_data(user_id, f"t30|{city}|{subject}")
 
         kb = [
-            [InlineKeyboardButton(text=f"📄 1 вариант — {final1}₽", callback_data=f"t1|{city}|{subject}")],
-            [InlineKeyboardButton(text=f"📚 30 вариантов — {final30}₽", callback_data=f"t30|{city}|{subject}")]
+            [InlineKeyboardButton(text=f"📄 1 вариант — {p1}₽", callback_data=f"t1|{city}|{subject}")],
+            [InlineKeyboardButton(text=f"📚 30 вариантов — {p30}₽", callback_data=f"t30|{city}|{subject}")]
         ]
 
         await callback.message.edit_text(
-            f"{city} | {subject}\n\n💸 Цены с учётом скидки",
+            f"{city} | {subject}\n\n💸 С учётом скидки",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
         )
 
@@ -184,7 +183,7 @@ async def cb(callback: types.CallbackQuery):
         ]
 
         await callback.message.edit_text(
-            f"{city} | {subject}\n\nВыбери вариант:",
+            f"{city} | {subject}",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
         )
 
@@ -199,16 +198,16 @@ async def cb(callback: types.CallbackQuery):
             await callback.message.answer("❌ Уже куплено")
             return
 
-        base, final, stars = get_price_data(callback.data, user_id)
+        base, final = get_price_data(user_id, callback.data)
 
         await bot.send_invoice(
             chat_id=user_id,
             title="Покупка",
-            description=f"Цена: {final}₽ (скидка применена)",
+            description=f"💰 Цена: {final}₽",
             payload=f"{callback.data}|{user_id}",
             provider_token="",
             currency="XTR",
-            prices=[LabeledPrice(label="Оплата", amount=stars)]
+            prices=[LabeledPrice(label="Оплата", amount=final)]
         )
 
     elif callback.data == "ref":
@@ -218,7 +217,9 @@ async def cb(callback: types.CallbackQuery):
 
         await callback.message.edit_text(
             f"👥 Приглашено: {invited}\n\n"
-            f"🔗 Ссылка:\n{link}",
+            f"До бонуса: {max(10-invited,0)}\n"
+            f"До VIP: {max(20-invited,0)}\n\n"
+            f"{link}",
             reply_markup=main_menu()
         )
 
@@ -230,7 +231,7 @@ async def cb(callback: types.CallbackQuery):
         users = cursor.fetchone()[0]
 
         await callback.message.edit_text(
-            f"👑 Админ\n👥 Пользователей: {users}",
+            f"👑 Админ\n👥 {users} пользователей",
             reply_markup=main_menu()
         )
 
@@ -247,7 +248,7 @@ async def success_payment(message: types.Message):
         await message.answer("❌ Ошибка")
         return
 
-    cursor.execute("UPDATE users SET bought = 1 WHERE user_id=?", (user_id,))
+    cursor.execute("UPDATE users SET bought=1 WHERE user_id=?", (user_id,))
     conn.commit()
 
     await message.answer("✅ Оплата прошла!")
