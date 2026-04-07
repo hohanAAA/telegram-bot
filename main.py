@@ -66,11 +66,11 @@ def get_user(user_id):
 # ===== ЦЕНЫ (в звёздах *100) =====
 def get_price(callback_data):
     if callback_data.startswith("buy1|"):
-        return 2500   # 25⭐️
+        return 2500   # 25⭐
     elif callback_data.startswith("t30|"):
-        return 7000   # 70⭐️
+        return 7000   # 70⭐
     elif callback_data.startswith("tfull|"):
-        return 24500  # 245⭐️
+        return 24500  # 245⭐
     return 1000
 
 # ===== МЕНЮ =====
