@@ -338,13 +338,8 @@ async def msg(message: types.Message):
 
 # ===== RUN =====
 async def main():
-    while True:
-        try:
-            await bot.delete_webhook(drop_pending_updates=True)
-            await dp.start_polling(bot, skip_updates=True)
-        except Exception as e:
-            print("RESTART:", e)
-            await asyncio.sleep(2)
-
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot, skip_updates=True)
+    
 if __name__ == "__main__":
     asyncio.run(main())
