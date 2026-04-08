@@ -206,28 +206,29 @@ async def cb(callback: types.CallbackQuery):
             prices=[LabeledPrice(label="Оплата", amount=price)]
         )
 
-    elif callback.data == "ref":
-        invited, _ = get_user(user_id)
-        price_now = get_discount_price(user_id)
-        to_vip = max(5 - invited, 0)
+elif callback.data == "ref":
+    invited, _ = get_user(user_id)
+    price_now = get_discount_price(user_id)
+    to_vip = max(5 - invited, 0)
 
-        link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
+    link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
 
-        text = (
-            "👥 РЕФЕРАЛЬНАЯ СИСТЕМА\n\n"
-            "💸 Цена уменьшается за друзей\n\n"
-            "📉 Было: 300 ⭐\n"
-            f"💰 Сейчас: {price_now} ⭐\n\n"
-            "— каждый друг: -20 ⭐\n"
-            "— минимум: 200 ⭐\n\n"
-            "👑 VIP с 5 друзей\n\n"
-            f"📊 До VIP: {to_vip}\n\n"
-            f"🔗 {link}"
-        )
+    text = (
+        "👥 РЕФЕРАЛЬНАЯ СИСТЕМА\n\n"
+        "💡 Цена уменьшается за друзей\n\n"
+        "📄 Было: 300 ⭐️\n"
+        f"🔥 Сейчас: {price_now} ⭐️\n\n"
+        "— каждый друг: -20 ⭐️\n"
+        "— минимум: 200 ⭐️\n\n"
+        "👑 VIP с 5 друзей\n\n"
+        f"📊 До VIP: {to_vip}\n\n"
+        f"🔗 {link}"
+    )
 
-        await callback.message.edit_text(text, reply_markup=back_btn())
+    await callback.message.edit_text(text, reply_markup=back_btn())
 
-   elif callback.data == "admin":
+
+elif callback.data == "admin":
     if user_id != ADMIN_ID:
         await callback.answer("❌ Нет доступа", show_alert=True)
         return
