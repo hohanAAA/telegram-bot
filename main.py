@@ -28,6 +28,15 @@ CREATE TABLE IF NOT EXISTS users (
     bought INTEGER DEFAULT 0
 )
 """)
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS purchases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    text TEXT
+)
+""")
+
 conn.commit()
 
 waiting_variant = {}
@@ -62,18 +71,22 @@ def get_user(user_id):
     row = cursor.fetchone()
     return row if row else (0, 0)
 
+def add_purchase(user_id, text):
+    cursor.execute("INSERT INTO purchases (user_id, text) VALUES (?, ?)", (user_id, text))
+    conn.commit()
+
+def get_purchases(user_id):
+    cursor.execute("SELECT text FROM purchases WHERE user_id=?", (user_id,))
+    return cursor.fetchall()
+
 # ===== РЕФЕРАЛКА =====
 def get_discount_price(user_id):
     invited, _ = get_user(user_id)
-
     price = 300 - invited * 20
-
     if invited >= 10:
         price -= 50
-
     if invited >= 20:
         price -= 100
-
     return max(price, 200)
 
 def is_vip(user_id):
@@ -92,6 +105,7 @@ async def check_sub(user_id):
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🛒 Купить", callback_data="buy")],
+        [InlineKeyboardButton(text="📦 Мои покупки", callback_data="mypurchases")],
         [InlineKeyboardButton(text="👥 Рефералы", callback_data="ref")],
         [InlineKeyboardButton(text="ℹ️ О боте", callback_data="about")],
         [InlineKeyboardButton(text="👑 Админ", callback_data="admin")]
@@ -120,6 +134,40 @@ async def start(message: types.Message):
 
     await message.answer("🚀 BoostSkoopiBot", reply_markup=main_menu())
 
+# ===== РАССЫЛКА =====
+@dp.message(lambda m: m.text and m.text.startswith("/send"))
+async def send_all(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    text = message.text.replace("/send ", "")
+
+    cursor.execute("SELECT user_id FROM users")
+    users = cursor.fetchall()
+
+    for u in users:
+        try:
+            await bot.send_message(u[0], text)
+        except:
+            pass
+
+# ===== ФОТО РАССЫЛКА =====
+@dp.message(lambda m: m.photo)
+async def send_photo_all(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    caption = message.caption or ""
+
+    cursor.execute("SELECT user_id FROM users")
+    users = cursor.fetchall()
+
+    for u in users:
+        try:
+            await bot.send_photo(u[0], message.photo[-1].file_id, caption=caption)
+        except:
+            pass
+
 # ===== АНТИ-СЛИВ =====
 @dp.message()
 async def any_text(message: types.Message):
@@ -137,8 +185,9 @@ async def any_text(message: types.Message):
         data = waiting_variant[user_id]
         del waiting_variant[user_id]
 
-        cursor.execute("UPDATE users SET bought = bought + 1 WHERE user_id=?", (user_id,))
-        conn.commit()
+        city, subject = data.split("|")[1:3]
+
+        add_purchase(user_id, f"{city} | {subject} | вариант {message.text}")
 
         await bot.send_invoice(
             chat_id=user_id,
@@ -164,18 +213,24 @@ async def cb(callback: types.CallbackQuery):
     elif callback.data == "about":
         await callback.message.edit_text(
             "📘 BoostSkoopiBot\n\n"
-            "🔥 Бот для покупки вариантов ОГЭ\n"
+            "🔥 Покупка вариантов ОГЭ\n"
             "⚡ Быстро и удобно\n"
-            "💰 Оплата через ⭐\n\n"
-            "👥 Есть реферальная система и VIP",
+            "💰 Оплата ⭐️\n\n"
+            "👥 Есть рефералка и VIP",
             reply_markup=back_btn()
         )
 
-    elif callback.data == "check_sub":
-        if await check_sub(user_id):
-            await callback.message.edit_text("✅ Подписка подтверждена", reply_markup=main_menu())
+    elif callback.data == "mypurchases":
+        purchases = get_purchases(user_id)
+
+        if not purchases:
+            text = "📦 У тебя нет покупок"
         else:
-            await callback.answer("❌ Не подписан", show_alert=True)
+            text = "📦 Твои покупки:\n\n"
+            for p in purchases:
+                text += f"— {p[0]}\n"
+
+        await callback.message.edit_text(text, reply_markup=back_btn())
 
     elif callback.data == "buy":
         kb = [[InlineKeyboardButton(text=c, callback_data=f"city|{c}")] for c in CITIES]
@@ -186,7 +241,7 @@ async def cb(callback: types.CallbackQuery):
         city = callback.data.split("|")[1]
 
         subs = SUBJECTS.copy()
-        if city in ["Татарстан", "Казань"]:
+        if city in ["Татарстан","Казань"]:
             subs.append("Татарский язык")
 
         kb = [[InlineKeyboardButton(text="🔥 Полный доступ — 1500 ⭐️", callback_data=f"tfull|{city}|all")]]
@@ -218,9 +273,6 @@ async def cb(callback: types.CallbackQuery):
     elif callback.data.startswith("t30|") or callback.data.startswith("tfull|"):
         price = get_discount_price(user_id) if "t30" in callback.data else 1500
 
-        cursor.execute("UPDATE users SET bought = bought + 1 WHERE user_id=?", (user_id,))
-        conn.commit()
-
         await bot.send_invoice(
             chat_id=user_id,
             title="Покупка",
@@ -244,12 +296,8 @@ async def cb(callback: types.CallbackQuery):
             "👥 РЕФЕРАЛЬНАЯ СИСТЕМА\n\n"
             f"👥 Приглашено: {invited}\n"
             f"💰 Покупок: {bought}\n\n"
-            "💸 -20 ⭐️ за каждого\n"
-            "📉 минимум: 200 ⭐️\n\n"
-            f"🔥 Цена сейчас: {price_now} ⭐️\n\n"
+            f"🔥 Цена: {price_now} ⭐️\n\n"
             f"{vip}\n\n"
-            "👑 VIP с 5 друзей\n"
-            "⚡ Быстрый ответ\n\n"
             f"📊 До VIP: {to_vip}\n\n"
             f"🔗 {link}"
         )
@@ -264,19 +312,7 @@ async def cb(callback: types.CallbackQuery):
         cursor.execute("SELECT COUNT(*) FROM users")
         users = cursor.fetchone()[0]
 
-        await callback.message.edit_text(
-            f"👑 Админ панель\n👥 {users} пользователей",
-            reply_markup=back_btn()
-        )
-
-# ===== ОПЛАТА =====
-@dp.pre_checkout_query()
-async def pre_checkout(pre_checkout_query: types.PreCheckoutQuery):
-    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
-
-@dp.message(lambda m: m.successful_payment)
-async def success_payment(message: types.Message):
-    await message.answer("✅ Оплата прошла!")
+        await callback.message.edit_text(f"👑 Админка\n👥 {users}", reply_markup=back_btn())
 
 # ===== WEB =====
 class Handler(BaseHTTPRequestHandler):
