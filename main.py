@@ -231,13 +231,34 @@ async def cb(callback: types.CallbackQuery):
             [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
         ]))
 
-    elif callback.data == "about":
-        await callback.message.edit_text(
-            "📄 О боте\n\nОГЭ варианты по всем городам",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
-            ])
-        )
+elif callback.data == "about":
+    await callback.message.edit_text(
+        """📄 О боте
+
+🔥 ОГЭ без стресса
+
+Здесь ты получаешь готовые варианты по всем городам  
+— быстро  
+— удобно  
+— без лишней воды  
+
+📚 Все основные предметы:
+математика, русский, английский и другие
+
+⚡ Мгновенный доступ после покупки  
+💸 Скидки до -100⭐ через рефералов  
+👑 VIP статус = приоритет + быстрее выдача  
+
+🎯 Подходит если:
+— нужно подготовиться быстро  
+— хочешь уверенно сдать  
+— не хочешь тратить время на поиски  
+
+Удачи на экзамене 🍀""",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+        ])
+    )
 
     elif callback.data == "admin":
         if user_id not in ADMIN_IDS:
