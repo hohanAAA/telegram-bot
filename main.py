@@ -10,7 +10,7 @@ from aiogram.filters import CommandStart
 
 TOKEN = os.getenv("TOKEN")
 
-ADMIN_ID = 5156716017
+ADMIN_ID = 8079396037
 CHANNEL = "@higanchick"
 BOT_USERNAME = "BoostSkoopiBot"
 
@@ -83,10 +83,6 @@ def get_purchases(user_id):
 def get_discount_price(user_id):
     invited, _ = get_user(user_id)
     price = 300 - invited * 20
-    if invited >= 10:
-        price -= 50
-    if invited >= 20:
-        price -= 100
     return max(price, 200)
 
 def is_vip(user_id):
@@ -132,7 +128,14 @@ async def start(message: types.Message):
         await message.answer("❗ Подпишись на канал", reply_markup=kb)
         return
 
-    await message.answer("🚀 BoostSkoopiBot", reply_markup=main_menu())
+    await message.answer(
+        "🚀 BoostSkoopiBot\n\n"
+        "📚 ОГЭ варианты по всем городам\n"
+        "⚡ Быстро и удобно\n"
+        "💰 Оплата через Telegram ⭐\n\n"
+        "👇 Выбери действие",
+        reply_markup=main_menu()
+    )
 
 # ===== РАССЫЛКА =====
 @dp.message(lambda m: m.text and m.text.startswith("/send"))
@@ -151,7 +154,6 @@ async def send_all(message: types.Message):
         except:
             pass
 
-# ===== ФОТО РАССЫЛКА =====
 @dp.message(lambda m: m.photo)
 async def send_photo_all(message: types.Message):
     if message.from_user.id != ADMIN_ID:
@@ -213,10 +215,9 @@ async def cb(callback: types.CallbackQuery):
     elif callback.data == "about":
         await callback.message.edit_text(
             "📘 BoostSkoopiBot\n\n"
-            "🔥 Покупка вариантов ОГЭ\n"
-            "⚡ Быстро и удобно\n"
-            "💰 Оплата ⭐️\n\n"
-            "👥 Есть рефералка и VIP",
+            "🔥 Удобный бот для покупки вариантов ОГЭ\n"
+            "⚡ Быстро, просто и понятно\n"
+            "💰 Оплата через Telegram ⭐",
             reply_markup=back_btn()
         )
 
@@ -232,6 +233,47 @@ async def cb(callback: types.CallbackQuery):
 
         await callback.message.edit_text(text, reply_markup=back_btn())
 
+    elif callback.data == "ref":
+        invited, bought = get_user(user_id)
+        price_now = get_discount_price(user_id)
+        to_vip = max(5 - invited, 0)
+
+        vip = "👑 VIP АКТИВЕН" if is_vip(user_id) else "❌ Нет VIP"
+
+        link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
+
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="👑 Что даёт VIP", callback_data="vip")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+        ])
+
+        text = (
+            "👥 РЕФЕРАЛЬНАЯ СИСТЕМА\n\n"
+            f"👥 Приглашено: {invited}\n"
+            f"💰 Покупок: {bought}\n\n"
+            f"🔥 Цена: {price_now} ⭐\n\n"
+            "📉 Система скидок:\n"
+            "— каждый друг: -20 ⭐\n"
+            "— максимум: -100 ⭐\n\n"
+            f"{vip}\n"
+            f"📊 До VIP: {to_vip}\n\n"
+            f"🔗 {link}"
+        )
+
+        await callback.message.edit_text(text, reply_markup=kb)
+
+    elif callback.data == "vip":
+        await callback.message.edit_text(
+            "👑 VIP СТАТУС\n\n"
+            "VIP — статус активного пользователя\n\n"
+            "🎯 Получается за 5 приглашённых\n\n"
+            "💎 Даёт:\n"
+            "— приоритет\n"
+            "— статус\n"
+            "— уважение\n",
+            reply_markup=back_btn()
+        )
+
     elif callback.data == "buy":
         kb = [[InlineKeyboardButton(text=c, callback_data=f"city|{c}")] for c in CITIES]
         kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back")])
@@ -244,7 +286,7 @@ async def cb(callback: types.CallbackQuery):
         if city in ["Татарстан","Казань"]:
             subs.append("Татарский язык")
 
-        kb = [[InlineKeyboardButton(text="🔥 Полный доступ — 1500 ⭐️", callback_data=f"tfull|{city}|all")]]
+        kb = [[InlineKeyboardButton(text="🔥 Полный доступ — 1500 ⭐", callback_data=f"tfull|{city}|all")]]
 
         for s in subs:
             kb.append([InlineKeyboardButton(text=s, callback_data=f"sub|{city}|{s}")])
@@ -259,8 +301,8 @@ async def cb(callback: types.CallbackQuery):
         price30 = get_discount_price(user_id)
 
         kb = [
-            [InlineKeyboardButton(text="📄 1 вариант — 100 ⭐️", callback_data=f"t1|{city}|{subject}")],
-            [InlineKeyboardButton(text=f"📚 30 вариантов — {price30} ⭐️", callback_data=f"t30|{city}|{subject}")],
+            [InlineKeyboardButton(text="📄 1 вариант — 100 ⭐", callback_data=f"t1|{city}|{subject}")],
+            [InlineKeyboardButton(text=f"📚 30 вариантов — {price30} ⭐", callback_data=f"t30|{city}|{subject}")],
             [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"city|{city}")]
         ]
 
@@ -276,33 +318,12 @@ async def cb(callback: types.CallbackQuery):
         await bot.send_invoice(
             chat_id=user_id,
             title="Покупка",
-            description=f"Цена: {price} ⭐️",
+            description=f"Цена: {price} ⭐",
             payload=callback.data,
             provider_token="",
             currency="XTR",
             prices=[LabeledPrice(label="Оплата", amount=price)]
         )
-
-    elif callback.data == "ref":
-        invited, bought = get_user(user_id)
-        price_now = get_discount_price(user_id)
-        to_vip = max(5 - invited, 0)
-
-        vip = "👑 VIP АКТИВЕН" if is_vip(user_id) else "❌ Нет VIP"
-
-        link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
-
-        text = (
-            "👥 РЕФЕРАЛЬНАЯ СИСТЕМА\n\n"
-            f"👥 Приглашено: {invited}\n"
-            f"💰 Покупок: {bought}\n\n"
-            f"🔥 Цена: {price_now} ⭐️\n\n"
-            f"{vip}\n\n"
-            f"📊 До VIP: {to_vip}\n\n"
-            f"🔗 {link}"
-        )
-
-        await callback.message.edit_text(text, reply_markup=back_btn())
 
     elif callback.data == "admin":
         if user_id != ADMIN_ID:
