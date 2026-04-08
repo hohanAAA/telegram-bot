@@ -107,7 +107,7 @@ async def start(message: types.Message):
 
     if not await check_sub(message.from_user.id):
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Подписаться", url="https://t.me/higanchick")],
+            [InlineKeyboardButton(text="📢 Подписаться", url="https://t.me/FunPayProfitLab")],
             [InlineKeyboardButton(text="✅ Проверить", callback_data="check_sub")]
         ])
         await message.answer("❗ Подпишись на канал", reply_markup=kb)
