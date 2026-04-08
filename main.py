@@ -15,7 +15,6 @@ BOT_USERNAME = "BoostSkoopiBot"
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# ===== БАЗА =====
 conn = sqlite3.connect("bot.db")
 cursor = conn.cursor()
 
@@ -52,13 +51,22 @@ async def check_sub(user_id):
     except:
         return False
 
-# ===== ФУНКЦИИ =====
 def add_user(user_id, ref=None):
     cursor.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
     if not cursor.fetchone():
         cursor.execute("INSERT INTO users (user_id) VALUES (?)", (user_id,))
         conn.commit()
 
+        if ref and ref != user_id:
+            cursor.execute("UPDATE users SET invited = invited + 1 WHERE user_id=?", (ref,))
+            conn.commit()
+
+def get_user(user_id):
+    cursor.execute("SELECT invited, bought FROM users WHERE user_id=?", (user_id,))
+    row = cursor.fetchone()
+    return row if row else (0, 0)
+
+# ===== МЕНЮ =====
 def main_menu(user_id):
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🛒 Купить", callback_data="buy")],
@@ -67,27 +75,34 @@ def main_menu(user_id):
         [InlineKeyboardButton(text="👑 Админ", callback_data="admin")]
     ])
 
+def back_btn():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+    ])
+
 # ===== СТАРТ =====
 @dp.message(CommandStart())
 async def start(message: types.Message):
-    add_user(message.from_user.id)
+    args = message.text.split()
+    ref = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
+
+    add_user(message.from_user.id, ref)
 
     if not await check_sub(message.from_user.id):
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📢 Подписаться", url="https://t.me/higanchick")],
             [InlineKeyboardButton(text="✅ Проверить", callback_data="check_sub")]
         ])
-        await message.answer("Подпишись на канал", reply_markup=kb)
+        await message.answer("❗ Подпишись на канал", reply_markup=kb)
         return
 
     await message.answer("🚀 BoostSkoopiBot", reply_markup=main_menu(message.from_user.id))
 
-# ===== ЛЮБОЙ ТЕКСТ =====
+# ===== ЛЮБОЙ ТЕКСТ = В МЕНЮ =====
 @dp.message()
 async def any_text(message: types.Message):
     user_id = message.from_user.id
 
-    # если ждём вариант
     if user_id in waiting_variant:
         if not message.text.isdigit():
             await message.answer("❌ Введи число от 1 до 30")
@@ -103,45 +118,40 @@ async def any_text(message: types.Message):
             payload=f"{data}|{user_id}",
             provider_token="",
             currency="XTR",
-            prices=[LabeledPrice(label="Оплата", amount=PRICES["buy1"])]
+            prices=[LabeledPrice(label="Оплата", amount=100)]
         )
         return
 
-    # любое другое сообщение → меню
-    await message.answer("⬇️ Выбери действие", reply_markup=main_menu(user_id))
+    await message.answer("🏠 Главное меню", reply_markup=main_menu(user_id))
 
 # ===== CALLBACK =====
 @dp.callback_query()
 async def cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
 
-    def back_btn():
-        return [[InlineKeyboardButton(text="⬅ Назад", callback_data="menu")]]
-
-    # назад в меню
-    if callback.data == "menu":
-        await callback.message.edit_text("Главное меню", reply_markup=main_menu(user_id))
+    if callback.data == "back":
+        await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu(user_id))
 
     elif callback.data == "check_sub":
         if await check_sub(user_id):
-            await callback.message.edit_text("✅ Подписка есть", reply_markup=main_menu(user_id))
+            await callback.message.edit_text("✅ Готово", reply_markup=main_menu(user_id))
         else:
             await callback.answer("❌ Не подписан", show_alert=True)
 
     elif callback.data == "about":
         await callback.message.edit_text(
             "📘 BoostSkoopiBot\n\n"
-            "Бот с вариантами ОГЭ по всем регионам.\n\n"
+            "🔥 Удобный бот для покупки вариантов ОГЭ\n\n"
             "📚 Все предметы\n"
-            "⚡ Быстро\n"
-            "💰 Оплата звездами\n\n"
-            "Выбери 'Купить'",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=back_btn())
+            "⚡ Быстрое получение\n"
+            "💸 Оплата через ⭐\n\n"
+            "Выбирай и покупай за пару кликов",
+            reply_markup=back_btn()
         )
 
     elif callback.data == "buy":
         kb = [[InlineKeyboardButton(text=c, callback_data=f"city|{c}")] for c in CITIES]
-        kb += back_btn()
+        kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back")])
 
         await callback.message.edit_text("🌍 Выбери город:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
@@ -152,58 +162,74 @@ async def cb(callback: types.CallbackQuery):
         if city == "Татарстан":
             subs.append("Татарский язык")
 
-        kb = [[InlineKeyboardButton(text=s, callback_data=f"sub|{city}|{s}")] for s in subs]
-        kb.insert(0, [InlineKeyboardButton(text="🔥 Полный доступ — 1500 ⭐", callback_data=f"tfull|{city}|all")])
-        kb += back_btn()
+        kb = [[InlineKeyboardButton(text="🔥 Полный доступ — 1500 ⭐", callback_data=f"tfull|{city}|all")]]
 
-        await callback.message.edit_text(f"{city}", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+        for s in subs:
+            kb.append([InlineKeyboardButton(text=s, callback_data=f"sub|{city}|{s}")])
+
+        kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="buy")])
+
+        await callback.message.edit_text(
+            f"{city}\n\nВыбери предмет:",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
+        )
 
     elif callback.data.startswith("sub|"):
         _, city, subject = callback.data.split("|")
 
         kb = [
             [InlineKeyboardButton(text="📄 1 вариант — 100 ⭐", callback_data=f"t1|{city}|{subject}")],
-            [InlineKeyboardButton(text="📚 30 вариантов — 300 ⭐", callback_data=f"t30|{city}|{subject}")]
-        ] + back_btn()
+            [InlineKeyboardButton(text="📚 30 вариантов — 300 ⭐", callback_data=f"t30|{city}|{subject}")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"city|{city}")]
+        ]
 
-        await callback.message.edit_text(f"{city} | {subject}", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+        await callback.message.edit_text(
+            f"{city} | {subject}",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
+        )
 
     elif callback.data.startswith("t1|"):
         waiting_variant[user_id] = callback.data
         await callback.message.answer("✏️ Введи номер варианта (1-30)")
 
     elif callback.data.startswith("t30|") or callback.data.startswith("tfull|"):
-        key = "t30" if "t30" in callback.data else "tfull"
+        price = 300 if "t30" in callback.data else 1500
 
         await bot.send_invoice(
             chat_id=user_id,
             title="Покупка",
-            description="Доступ к материалам",
+            description="Доступ к материалам ⭐",
             payload=f"{callback.data}|{user_id}",
             provider_token="",
             currency="XTR",
-            prices=[LabeledPrice(label="Оплата", amount=PRICES[key])]
+            prices=[LabeledPrice(label="Оплата", amount=price)]
         )
 
     elif callback.data == "ref":
-        link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
+        invited, _ = get_user(user_id)
 
-        await callback.message.edit_text(
-            f"👥 Твоя ссылка:\n{link}",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=back_btn())
+        text = (
+            f"👥 Приглашено: {invited}\n\n"
+            "💰 Бонусы:\n"
+            "1 человек → бонус\n"
+            "2+ → больше бонусов\n\n"
+            f"🎯 До 10: {max(10-invited,0)}\n"
+            f"👑 До VIP: {max(20-invited,0)}\n\n"
+            f"https://t.me/{BOT_USERNAME}?start={user_id}"
         )
+
+        await callback.message.edit_text(text, reply_markup=back_btn())
 
     elif callback.data == "admin":
         if user_id != ADMIN_ID:
-            await callback.answer("❌ Нет доступа", show_alert=True)
             return
 
         cursor.execute("SELECT COUNT(*) FROM users")
         users = cursor.fetchone()[0]
 
         await callback.message.edit_text(
-            f"👑 Админ панель\n\n👥 Пользователей: {users}",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=back_btn())
+            f"👑 Админ панель\n\n👥 {users} пользователей",
+            reply_markup=back_btn()
         )
 
 # ===== ОПЛАТА =====
