@@ -11,7 +11,7 @@ from aiogram.filters import Command
 TOKEN = os.getenv("TOKEN")
 
 ADMIN_IDS = [8079396037, 5156716817]
-CHANNEL_ID = "@higanchick"
+CHANNEL_ID = "@FunPayProfitLab"
 BOT_USERNAME = "BoostSkoopiBot"
 
 bot = Bot(token=TOKEN)
