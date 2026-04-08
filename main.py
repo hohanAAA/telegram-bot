@@ -24,7 +24,8 @@ cursor = conn.cursor()
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS users (
     user_id INTEGER PRIMARY KEY,
-    invited INTEGER DEFAULT 0
+    invited INTEGER DEFAULT 0,
+    bought INTEGER DEFAULT 0
 )
 """)
 conn.commit()
@@ -33,10 +34,10 @@ waiting_variant = {}
 
 # ===== ГОРОДА =====
 CITIES = [
-    "Москва", "Санкт-Петербург", "Новосибирск", "Екатеринбург",
-    "Казань", "Татарстан", "Нижний Новгород", "Челябинск",
-    "Самара", "Омск", "Ростов-на-Дону", "Уфа",
-    "Красноярск", "Воронеж", "Пермь", "Волгоград", "Краснодар"
+    "Москва","Санкт-Петербург","Новосибирск","Екатеринбург",
+    "Казань","Татарстан","Нижний Новгород","Челябинск",
+    "Самара","Омск","Ростов-на-Дону","Уфа",
+    "Красноярск","Воронеж","Пермь","Волгоград","Краснодар"
 ]
 
 SUBJECTS = [
@@ -45,19 +46,34 @@ SUBJECTS = [
     "Литература","Английский","Биология","История"
 ]
 
-# ===== РЕФЕРАЛКА =====
-def get_user(user_id):
-    cursor.execute("SELECT invited FROM users WHERE user_id=?", (user_id,))
-    row = cursor.fetchone()
-    if row:
-        return row[0], user_id
-    cursor.execute("INSERT INTO users (user_id) VALUES (?)", (user_id,))
-    conn.commit()
-    return 0, user_id
+# ===== БАЗА =====
+def add_user(user_id, ref=None):
+    cursor.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
+    if not cursor.fetchone():
+        cursor.execute("INSERT INTO users (user_id) VALUES (?)", (user_id,))
+        conn.commit()
 
+        if ref and ref != user_id:
+            cursor.execute("UPDATE users SET invited = invited + 1 WHERE user_id=?", (ref,))
+            conn.commit()
+
+def get_user(user_id):
+    cursor.execute("SELECT invited, bought FROM users WHERE user_id=?", (user_id,))
+    row = cursor.fetchone()
+    return row if row else (0, 0)
+
+# ===== РЕФЕРАЛКА =====
 def get_discount_price(user_id):
     invited, _ = get_user(user_id)
+
     price = 300 - invited * 20
+
+    if invited >= 10:
+        price -= 50
+
+    if invited >= 20:
+        price -= 100
+
     return max(price, 200)
 
 def is_vip(user_id):
@@ -77,6 +93,7 @@ def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🛒 Купить", callback_data="buy")],
         [InlineKeyboardButton(text="👥 Рефералы", callback_data="ref")],
+        [InlineKeyboardButton(text="ℹ️ О боте", callback_data="about")],
         [InlineKeyboardButton(text="👑 Админ", callback_data="admin")]
     ])
 
@@ -88,9 +105,12 @@ def back_btn():
 # ===== СТАРТ =====
 @dp.message(CommandStart())
 async def start(message: types.Message):
-    user_id = message.from_user.id
+    args = message.text.split()
+    ref = int(args[1]) if len(args) > 1 and args[1].isdigit() else None
 
-    if not await check_sub(user_id):
+    add_user(message.from_user.id, ref)
+
+    if not await check_sub(message.from_user.id):
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📢 Подписаться", url="https://t.me/higanchick")],
             [InlineKeyboardButton(text="✅ Проверить", callback_data="check_sub")]
@@ -98,7 +118,6 @@ async def start(message: types.Message):
         await message.answer("❗ Подпишись на канал", reply_markup=kb)
         return
 
-    get_user(user_id)
     await message.answer("🚀 BoostSkoopiBot", reply_markup=main_menu())
 
 # ===== АНТИ-СЛИВ =====
@@ -117,6 +136,9 @@ async def any_text(message: types.Message):
 
         data = waiting_variant[user_id]
         del waiting_variant[user_id]
+
+        cursor.execute("UPDATE users SET bought = bought + 1 WHERE user_id=?", (user_id,))
+        conn.commit()
 
         await bot.send_invoice(
             chat_id=user_id,
@@ -138,6 +160,16 @@ async def cb(callback: types.CallbackQuery):
 
     if callback.data == "back":
         await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu())
+
+    elif callback.data == "about":
+        await callback.message.edit_text(
+            "📘 BoostSkoopiBot\n\n"
+            "🔥 Бот для покупки вариантов ОГЭ\n"
+            "⚡ Быстро и удобно\n"
+            "💰 Оплата через ⭐\n\n"
+            "👥 Есть реферальная система и VIP",
+            reply_markup=back_btn()
+        )
 
     elif callback.data == "check_sub":
         if await check_sub(user_id):
@@ -186,6 +218,9 @@ async def cb(callback: types.CallbackQuery):
     elif callback.data.startswith("t30|") or callback.data.startswith("tfull|"):
         price = get_discount_price(user_id) if "t30" in callback.data else 1500
 
+        cursor.execute("UPDATE users SET bought = bought + 1 WHERE user_id=?", (user_id,))
+        conn.commit()
+
         await bot.send_invoice(
             chat_id=user_id,
             title="Покупка",
@@ -197,7 +232,7 @@ async def cb(callback: types.CallbackQuery):
         )
 
     elif callback.data == "ref":
-        invited, _ = get_user(user_id)
+        invited, bought = get_user(user_id)
         price_now = get_discount_price(user_id)
         to_vip = max(5 - invited, 0)
 
@@ -207,13 +242,14 @@ async def cb(callback: types.CallbackQuery):
 
         text = (
             "👥 РЕФЕРАЛЬНАЯ СИСТЕМА\n\n"
-            "💸 Каждый друг снижает цену на 20 ⭐️\n"
-            "📉 Минимум: 200 ⭐️\n\n"
-            f"🔥 Текущая цена: {price_now} ⭐️\n\n"
+            f"👥 Приглашено: {invited}\n"
+            f"💰 Покупок: {bought}\n\n"
+            "💸 -20 ⭐️ за каждого\n"
+            "📉 минимум: 200 ⭐️\n\n"
+            f"🔥 Цена сейчас: {price_now} ⭐️\n\n"
             f"{vip}\n\n"
-            "👑 VIP даёт:\n"
-            "— быстрый ответ\n"
-            "— приоритет\n\n"
+            "👑 VIP с 5 друзей\n"
+            "⚡ Быстрый ответ\n\n"
             f"📊 До VIP: {to_vip}\n\n"
             f"🔗 {link}"
         )
