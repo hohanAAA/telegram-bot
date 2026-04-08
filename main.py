@@ -247,7 +247,22 @@ async def pre_checkout(pre_checkout_query: types.PreCheckoutQuery):
 @dp.message(lambda m: m.successful_payment)
 async def success_payment(message: types.Message):
     await message.answer("✅ Оплата прошла!")
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b'OK')
+
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), Handler)
+    server.serve_forever()
+
+# запускаем веб в отдельном потоке
+threading.Thread(target=run_web, daemon=True).start()
 # ===== ЗАПУСК =====
 async def main():
     await dp.start_polling(bot)
