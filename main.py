@@ -17,6 +17,7 @@ BOT_USERNAME = "BoostSkoopiBot"
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
+# ===== БД =====
 conn = sqlite3.connect("bot.db", check_same_thread=False)
 cursor = conn.cursor()
 
@@ -40,7 +41,7 @@ conn.commit()
 broadcast_mode = {}
 waiting_variant = {}
 
-# ===== WEB (для Render чтобы не падал) =====
+# ===== WEB (фикс Render) =====
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -54,7 +55,7 @@ def run_web():
 
 threading.Thread(target=run_web, daemon=True).start()
 
-# ===== ГОРОДА =====
+# ===== ДАННЫЕ =====
 cities = [
     "Москва","СПБ","Казань","Новосибирск","Екатеринбург",
     "Нижний Новгород","Челябинск","Самара","Омск","Ростов",
@@ -62,7 +63,6 @@ cities = [
     "Краснодар","Саратов","Тюмень","Тольятти"
 ]
 
-# ===== ВСЕ ПРЕДМЕТЫ =====
 subjects = [
     "Математика","Русский","Английский",
     "Информатика","Физика","Химия",
@@ -153,7 +153,6 @@ async def cb(callback: types.CallbackQuery):
 
     elif callback.data.startswith("city|"):
         city = callback.data.split("|")[1]
-
         kb = [[InlineKeyboardButton(text=s, callback_data=f"sub|{city}|{s}")] for s in subjects]
         kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="buy")])
         await callback.message.edit_text(city, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
@@ -227,13 +226,16 @@ async def cb(callback: types.CallbackQuery):
         for i in data:
             text += f"— {i[0]}\n"
 
-        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
-        ]))
+        await callback.message.edit_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+            ])
+        )
 
-elif callback.data == "about":
-    await callback.message.edit_text(
-        """📄 О боте
+    elif callback.data == "about":
+        await callback.message.edit_text(
+            """📄 О боте
 
 🔥 ОГЭ без стресса
 
@@ -255,10 +257,10 @@ elif callback.data == "about":
 — не хочешь тратить время на поиски  
 
 Удачи на экзамене 🍀""",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
-        ])
-    )
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+            ])
+        )
 
     elif callback.data == "admin":
         if user_id not in ADMIN_IDS:
@@ -340,6 +342,6 @@ async def msg(message: types.Message):
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot, skip_updates=True)
-    
+
 if __name__ == "__main__":
     asyncio.run(main())
