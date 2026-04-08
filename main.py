@@ -10,7 +10,7 @@ from aiogram.filters import CommandStart
 
 TOKEN = os.getenv("TOKEN")
 
-ADMIN_ID = 8079396037
+ADMIN_ID = - 5156716017
 CHANNEL = "@higanchick"
 BOT_USERNAME = "BoostSkoopiBot"
 
