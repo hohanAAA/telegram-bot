@@ -1,11 +1,6 @@
 import os
 import sqlite3
 import asyncio
-import threading
-import requests
-import time
-
-from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice
@@ -43,17 +38,6 @@ conn.commit()
 broadcast_mode = {}
 waiting_variant = {}
 
-# ===== KEEP ALIVE =====
-def ping():
-    while True:
-        try:
-            requests.get("https://telegram-bot-t3vt.onrender.com")
-        except:
-            pass
-        time.sleep(300)
-
-threading.Thread(target=ping, daemon=True).start()
-
 # ===== ГОРОДА =====
 cities = [
     "Москва","СПБ","Казань","Новосибирск","Екатеринбург",
@@ -62,18 +46,11 @@ cities = [
     "Краснодар","Саратов","Тюмень","Тольятти"
 ]
 
-# ✅ ВСЕ ПРЕДМЕТЫ
+# ===== ВСЕ ПРЕДМЕТЫ =====
 subjects = [
-    "Математика",
-    "Русский",
-    "Английский",
-    "Информатика",
-    "Физика",
-    "Химия",
-    "Биология",
-    "Общество",
-    "История",
-    "География"
+    "Математика","Русский","Английский",
+    "Информатика","Физика","Химия",
+    "Биология","Общество","История","География"
 ]
 
 # ===== UTILS =====
@@ -268,6 +245,58 @@ async def cb(callback: types.CallbackQuery):
 
     elif callback.data == "back":
         await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu())
+
+# ===== ОПЛАТА =====
+@dp.pre_checkout_query()
+async def pre_checkout(pre_checkout_query: types.PreCheckoutQuery):
+    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+
+@dp.message(lambda m: m.successful_payment)
+async def success_payment(message: types.Message):
+    payload = message.successful_payment.invoice_payload
+    data = payload.split("|")
+
+    try:
+        user_id = int(data[-1])
+        city = data[1]
+        subject = data[2]
+
+        item = f"{city} | {subject} | 30 вариантов"
+
+        cursor.execute("INSERT INTO purchases (user_id, item) VALUES (?, ?)", (user_id, item))
+        conn.commit()
+    except:
+        pass
+
+    await message.answer("✅ Оплата прошла и сохранена!")
+
+# ===== РАССЫЛКА =====
+@dp.message()
+async def msg(message: types.Message):
+    user_id = message.from_user.id
+
+    if user_id not in broadcast_mode:
+        return
+
+    mode = broadcast_mode[user_id]
+    del broadcast_mode[user_id]
+
+    cursor.execute("SELECT user_id FROM users")
+    users = cursor.fetchall()
+
+    for u in users:
+        try:
+            if mode == "vip" and not is_vip(u[0]):
+                continue
+
+            if message.photo:
+                await bot.send_photo(u[0], message.photo[-1].file_id, caption=message.caption or "")
+            else:
+                await bot.send_message(u[0], message.text)
+        except:
+            pass
+
+    await message.answer("✅ Готово")
 
 # ===== RUN =====
 async def main():
