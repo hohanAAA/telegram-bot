@@ -17,7 +17,7 @@ BOT_USERNAME = "BoostSkoopiBot"
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-conn = sqlite3.connect("bot.db")
+conn = sqlite3.connect("bot.db", check_same_thread=False)
 cursor = conn.cursor()
 
 cursor.execute("""
@@ -54,9 +54,14 @@ subjects = ["Математика","Русский","Английский"]
 def add_user(user_id, ref=None):
     cursor.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
     if not cursor.fetchone():
+        if ref == user_id:
+            ref = None
+
         cursor.execute("INSERT INTO users (user_id, ref_by) VALUES (?, ?)", (user_id, ref))
+
         if ref:
             cursor.execute("UPDATE users SET invited = invited + 1 WHERE user_id=?", (ref,))
+
         conn.commit()
 
 def get_user(user_id):
@@ -93,13 +98,16 @@ def main_menu():
 async def start(message: types.Message):
     ref = None
     if len(message.text.split()) > 1:
-        ref = int(message.text.split()[1])
+        try:
+            ref = int(message.text.split()[1])
+        except:
+            ref = None
 
     add_user(message.from_user.id, ref)
 
     if not await check_sub(message.from_user.id):
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Подписаться", url="https://t.me/chizranchick")],
+            [InlineKeyboardButton(text="📢 Подписаться", url="https://t.me/higanchick")],
             [InlineKeyboardButton(text="✅ Проверить", callback_data="check_sub")]
         ])
         await message.answer("❗ Подпишись на канал", reply_markup=kb)
@@ -307,6 +315,7 @@ threading.Thread(target=run_web, daemon=True).start()
 
 # ===== RUN =====
 async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
