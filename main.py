@@ -1,6 +1,8 @@
 import os
 import sqlite3
 import asyncio
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice
@@ -37,6 +39,20 @@ conn.commit()
 
 broadcast_mode = {}
 waiting_variant = {}
+
+# ===== WEB (для Render чтобы не падал) =====
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), Handler)
+    server.serve_forever()
+
+threading.Thread(target=run_web, daemon=True).start()
 
 # ===== ГОРОДА =====
 cities = [
@@ -122,6 +138,7 @@ async def start(message: types.Message):
 @dp.callback_query()
 async def cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
+    print("MY ID:", user_id)
 
     if callback.data == "check_sub":
         if await check_sub(user_id):
@@ -307,5 +324,6 @@ async def main():
         except Exception as e:
             print("RESTART:", e)
             await asyncio.sleep(2)
+
 if __name__ == "__main__":
     asyncio.run(main())
