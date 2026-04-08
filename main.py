@@ -10,7 +10,7 @@ from aiogram.filters import CommandStart
 
 TOKEN = os.getenv("TOKEN")
 
-ADMIN_ID = 5156716017
+ADMIN_ID = [8079396037, 5156716017]
 CHANNEL = "@higanchick"
 BOT_USERNAME = "BoostSkoopiBot"
 
@@ -140,7 +140,7 @@ async def start(message: types.Message):
 # ===== РАССЫЛКА =====
 @dp.message(lambda m: m.text and m.text.startswith("/send"))
 async def send_all(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
 
     text = message.text.replace("/send ", "")
@@ -156,7 +156,7 @@ async def send_all(message: types.Message):
 
 @dp.message(lambda m: m.photo)
 async def send_photo_all(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
+    if message.from_user.id not in ADMIN_IDS:
         return
 
     caption = message.caption or ""
@@ -326,7 +326,7 @@ async def cb(callback: types.CallbackQuery):
         )
 
     elif callback.data == "admin":
-        if user_id != ADMIN_ID:
+        if user_id not in ADMIN_IDS:
             await callback.answer("❌ Нет доступа", show_alert=True)
             return
 
