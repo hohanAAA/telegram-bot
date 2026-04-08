@@ -227,18 +227,18 @@ async def cb(callback: types.CallbackQuery):
 
         await callback.message.edit_text(text, reply_markup=back_btn())
 
-    elif callback.data == "admin":
-        if user_id != ADMIN_ID:
-            return
+   elif callback.data == "admin":
+    if user_id != ADMIN_ID:
+        await callback.answer("❌ Нет доступа", show_alert=True)
+        return
 
-        cursor.execute("SELECT COUNT(*) FROM users")
-        users = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM users")
+    users = cursor.fetchone()[0]
 
-        await callback.message.edit_text(
-            f"👑 Админ панель\n👥 {users} пользователей",
-            reply_markup=back_btn()
-        )
-
+    await callback.message.edit_text(
+        f"👑 Админ панель\n\n👥 Пользователей: {users}",
+        reply_markup=back_btn()
+    )
 # ===== ОПЛАТА =====
 @dp.pre_checkout_query()
 async def pre_checkout(pre_checkout_query: types.PreCheckoutQuery):
