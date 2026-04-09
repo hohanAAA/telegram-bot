@@ -261,6 +261,7 @@ async def cb(callback: types.CallbackQuery):
         invited = get_user(user_id)
         price = get_discount_price(user_id)
         to_vip = max(5 - invited, 0)
+        current_discount = min(invited * 20, 100)
 
         link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
 
@@ -273,7 +274,11 @@ async def cb(callback: types.CallbackQuery):
 
 📊 Приглашено друзей: {invited}
 💰 Твоя цена за 30 вариантов: {price}⭐
+🎁 Твоя скидка: {current_discount}⭐
 👑 До VIP статуса: {to_vip} друзей
+
+📌 Максимальная скидка: 100⭐
+📌 Минимальная цена: 200⭐
 
 🔗 Твоя ссылка:
 {link}
