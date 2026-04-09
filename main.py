@@ -41,7 +41,7 @@ conn.commit()
 broadcast_mode = {}
 waiting_variant = {}
 
-# ===== WEB (фикс Render) =====
+# ===== WEB =====
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -58,15 +58,12 @@ threading.Thread(target=run_web, daemon=True).start()
 # ===== ДАННЫЕ =====
 cities = [
     "Москва","СПБ","Казань","Новосибирск","Екатеринбург",
-    "Нижний Новгород","Челябинск","Самара","Омск","Ростов",
-    "Уфа","Красноярск","Пермь","Воронеж","Волгоград",
-    "Краснодар","Саратов","Тюмень","Тольятти"
+    "Саратов","Тюмень"
 ]
 
 subjects = [
     "Математика","Русский","Английский",
-    "Информатика","Физика","Химия",
-    "Биология","Общество","История","География"
+    "Информатика","Физика"
 ]
 
 # ===== UTILS =====
@@ -75,12 +72,7 @@ def add_user(user_id, ref=None):
     if not cursor.fetchone():
         if ref == user_id:
             ref = None
-
         cursor.execute("INSERT INTO users (user_id, ref_by) VALUES (?, ?)", (user_id, ref))
-
-        if ref:
-            cursor.execute("UPDATE users SET invited = invited + 1 WHERE user_id=?", (ref,))
-
         conn.commit()
 
 def get_user(user_id):
@@ -120,7 +112,7 @@ async def start(message: types.Message):
         try:
             ref = int(message.text.split()[1])
         except:
-            ref = None
+            pass
 
     add_user(message.from_user.id, ref)
 
@@ -138,7 +130,6 @@ async def start(message: types.Message):
 @dp.callback_query()
 async def cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
-    print("MY ID:", user_id)
 
     if callback.data == "check_sub":
         if await check_sub(user_id):
@@ -148,25 +139,22 @@ async def cb(callback: types.CallbackQuery):
 
     elif callback.data == "buy":
         kb = [[InlineKeyboardButton(text=c, callback_data=f"city|{c}")] for c in cities]
-        kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back")])
         await callback.message.edit_text("Выбери город:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
     elif callback.data.startswith("city|"):
         city = callback.data.split("|")[1]
         kb = [[InlineKeyboardButton(text=s, callback_data=f"sub|{city}|{s}")] for s in subjects]
-        kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="buy")])
         await callback.message.edit_text(city, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
     elif callback.data.startswith("sub|"):
         _, city, subject = callback.data.split("|")
         price30 = get_discount_price(user_id)
 
-       kb = [
-        [InlineKeyboardButton(text="📄 1 вариант — 100 ⭐️", callback_data=f"t1|{city}|{subject}")],
-        [InlineKeyboardButton(text=f"📚 30 вариантов — {price30} ⭐️", callback_data=f"t30|{city}|{subject}")],
-        [InlineKeyboardButton(text="🔥 Все предметы — 1500 ⭐️", callback_data=f"all|{city}")],
-        [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"city|{city}")]
-]
+        kb = [
+            [InlineKeyboardButton(text="📄 1 вариант — 100 ⭐️", callback_data=f"t1|{city}|{subject}")],
+            [InlineKeyboardButton(text=f"📚 30 вариантов — {price30} ⭐️", callback_data=f"t30|{city}|{subject}")],
+            [InlineKeyboardButton(text="🔥 Все предметы — 1500 ⭐️", callback_data=f"all|{city}")]
+        ]
 
         await callback.message.edit_text(f"{city} | {subject}", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
@@ -186,114 +174,19 @@ async def cb(callback: types.CallbackQuery):
             currency="XTR",
             prices=[LabeledPrice(label="Оплата", amount=price)]
         )
+
     elif callback.data.startswith("all|"):
-    city = callback.data.split("|")[1]
+        city = callback.data.split("|")[1]
 
-    await bot.send_invoice(
-        chat_id=user_id,
-        title="Все предметы",
-        description=f"{city} | все предметы",
-        payload=f"all|{city}|{user_id}",
-        provider_token="",
-        currency="XTR",
-        prices=[LabeledPrice(label="Оплата", amount=1500)]
-    )
-    elif callback.data == "ref":
-        invited = get_user(user_id)
-        price = get_discount_price(user_id)
-        to_vip = max(5 - invited, 0)
-
-        link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
-
-        text = (
-            "👥 РЕФЕРАЛЬНАЯ СИСТЕМА\n\n"
-            "💡 За каждого друга -20 ⭐️\n"
-            "🔥 Максимальная скидка: -100 ⭐️\n\n"
-            f"💰 Сейчас: {price} ⭐️\n\n"
-            f"👥 Приглашено: {invited}\n"
-            f"👑 До VIP: {to_vip}\n\n"
-            f"{link}"
+        await bot.send_invoice(
+            chat_id=user_id,
+            title="Все предметы",
+            description=f"{city} | все предметы",
+            payload=f"all|{city}|{user_id}",
+            provider_token="",
+            currency="XTR",
+            prices=[LabeledPrice(label="Оплата", amount=1500)]
         )
-
-        kb = [
-            [InlineKeyboardButton(text="👑 Что дает VIP", callback_data="vip")],
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
-        ]
-
-        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
-
-    elif callback.data == "vip":
-        await callback.message.edit_text(
-            "👑 VIP\n\nДаётся от 5 друзей\n\n⚡ Быстрая выдача\n⚡ Приоритет",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="⬅️ Назад", callback_data="ref")]
-            ])
-        )
-
-    elif callback.data == "my":
-        cursor.execute("SELECT item FROM purchases WHERE user_id=?", (user_id,))
-        data = cursor.fetchall()
-
-        text = "📦 Покупки:\n\n" if data else "❌ Нет покупок"
-        for i in data:
-            text += f"— {i[0]}\n"
-
-        await callback.message.edit_text(
-            text,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
-            ])
-        )
-
-    elif callback.data == "about":
-        await callback.message.edit_text(
-            """📄 О боте
-
-🔥 ОГЭ без стресса
-
-Здесь ты получаешь готовые варианты по всем городам  
-— быстро  
-— удобно  
-— без лишней воды  
-
-📚 Все основные предметы:
-математика, русский, английский и другие
-
-⚡ Мгновенный доступ после покупки  
-💸 Скидки до -100⭐ через рефералов  
-👑 VIP статус = приоритет + быстрее выдача  
-
-🎯 Подходит если:
-— нужно подготовиться быстро  
-— хочешь уверенно сдать  
-— не хочешь тратить время на поиски  
-
-Удачи на экзамене 🍀""",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
-            ])
-        )
-
-    elif callback.data == "admin":
-        if user_id not in ADMIN_IDS:
-            await callback.answer("❌ Нет доступа", show_alert=True)
-            return
-
-        kb = [
-            [InlineKeyboardButton(text="📩 Всем", callback_data="b_all")],
-            [InlineKeyboardButton(text="👑 VIP", callback_data="b_vip")],
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
-        ]
-
-        await callback.message.edit_text("Админка", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
-
-    elif callback.data == "b_all":
-        broadcast_mode[user_id] = "all"
-        await callback.message.edit_text("Отправь сообщение")
-
-    elif callback.data == "b_vip":
-        broadcast_mode[user_id] = "vip"
-        await callback.message.edit_text("Отправь сообщение VIP")
 
     elif callback.data == "back":
         await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu())
@@ -309,61 +202,30 @@ async def success_payment(message: types.Message):
     data = payload.split("|")
 
     try:
-    user_id = int(data[-1])
+        user_id = int(data[-1])
 
-    # 🔥 ВСЕ ПРЕДМЕТЫ
-    if data[0] == "all":
-        city = data[1]
-        item = f"{city} | ВСЕ ПРЕДМЕТЫ"
+        if data[0] == "all":
+            city = data[1]
+            item = f"{city} | ВСЕ ПРЕДМЕТЫ"
+        else:
+            city = data[1]
+            subject = data[2]
+            item = f"{city} | {subject} | 30 вариантов"
 
-    # 📚 30 ВАРИАНТОВ
-    else:
-        city = data[1]
-        subject = data[2]
-        item = f"{city} | {subject} | 30 вариантов"
+        cursor.execute("INSERT INTO purchases (user_id, item) VALUES (?, ?)", (user_id, item))
+        conn.commit()
 
-    cursor.execute("INSERT INTO purchases (user_id, item) VALUES (?, ?)", (user_id, item))
-    conn.commit()
+    except:
+        pass
 
-except:
-    pass
     await message.answer("✅ Оплата прошла и сохранена!")
 
-# ===== РАССЫЛКА =====
+# ===== MESSAGE =====
 @dp.message()
 async def msg(message: types.Message):
     user_id = message.from_user.id
 
-    # ===== ОБРАБОТКА ВАРИАНТА =====
-    if user_id in waiting_variant:
-        try:
-            num = int(message.text)
-            if num < 1 or num > 30:
-                await message.answer("❗ Введи число от 1 до 30")
-                return
-
-            data = waiting_variant[user_id]
-            del waiting_variant[user_id]
-
-            _, city, subject = data.split("|")
-
-            item = f"{city} | {subject} | вариант {num}"
-
-            cursor.execute("INSERT INTO purchases (user_id, item) VALUES (?, ?)", (user_id, item))
-            conn.commit()
-
-            await message.answer(f"✅ Куплен вариант {num}\n\n📩 Отправка...")
-
-        except:
-            await message.answer("❗ Введи число")
-        return
-
-    # ===== РАССЫЛКА =====
-  @dp.message()
-async def msg(message: types.Message):
-    user_id = message.from_user.id
-
-    # ===== ОБРАБОТКА ВАРИАНТА =====
+    # вариант
     if user_id in waiting_variant:
         try:
             num = int(message.text)
@@ -387,91 +249,8 @@ async def msg(message: types.Message):
             await message.answer("❗ Введи число")
         return
 
-    # ===== РАССЫЛКА =====
-@dp.message()
-async def msg(message: types.Message):
-    user_id = message.from_user.id
-
-    # ===== ОБРАБОТКА ВАРИАНТА =====
-    if user_id in waiting_variant:
-        try:
-            num = int(message.text)
-            if num < 1 or num > 30:
-                await message.answer("❗ Введи число от 1 до 30")
-                return
-
-            data = waiting_variant[user_id]
-            del waiting_variant[user_id]
-
-            _, city, subject = data.split("|")
-
-            item = f"{city} | {subject} | вариант {num}"
-
-            cursor.execute("INSERT INTO purchases (user_id, item) VALUES (?, ?)", (user_id, item))
-            conn.commit()
-
-            await message.answer(f"✅ Куплен вариант {num}")
-
-        except:
-            await message.answer("❗ Введи число")
-        return
-
-    # ===== РАССЫЛКА =====
-  @dp.message()
-async def msg(message: types.Message):
-    user_id = message.from_user.id
-
-    # ===== ОБРАБОТКА ВАРИАНТА =====
-    if user_id in waiting_variant:
-        try:
-            num = int(message.text)
-            if num < 1 or num > 30:
-                await message.answer("❗ Введи число от 1 до 30")
-                return
-
-            data = waiting_variant[user_id]
-            del waiting_variant[user_id]
-
-            _, city, subject = data.split("|")
-
-            item = f"{city} | {subject} | вариант {num}"
-
-            cursor.execute("INSERT INTO purchases (user_id, item) VALUES (?, ?)", (user_id, item))
-            conn.commit()
-
-            await message.answer(f"✅ Куплен вариант {num}")
-
-        except:
-            await message.answer("❗ Введи число")
-        return
-
-    # ===== РАССЫЛКА =====
-@dp.message()
-async def msg(message: types.Message):
-    user_id = message.from_user.id
-if user_id in waiting_variant:
-        try:
-            num = int(message.text)
-            if num < 1 or num > 30:
-                await message.answer("❗ Введи число от 1 до 30")
-                return
-
-            data = waiting_variant[user_id]
-            del waiting_variant[user_id]
-
-            _, city, subject = data.split("|")
-
-            item = f"{city} | {subject} | вариант {num}"
-
-            cursor.execute("INSERT INTO purchases (user_id, item) VALUES (?, ?)", (user_id, item))
-            conn.commit()
-
-            await message.answer(f"✅ Куплен вариант {num}")
-            return
-        except:
-            await message.answer("❗ Введи число")
-        return
-     if user_id not in broadcast_mode:
+    # рассылка
+    if user_id not in broadcast_mode:
         return
 
     mode = broadcast_mode[user_id]
@@ -497,7 +276,7 @@ if user_id in waiting_variant:
 # ===== RUN =====
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot, skip_updates=True)
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
