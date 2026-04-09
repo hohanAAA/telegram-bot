@@ -101,11 +101,9 @@ async def check_sub(user_id):
 
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💎 Тарифы", callback_data="buy")],
-        [InlineKeyboardButton(text="📦 Мои покупки", callback_data="my")],
-        [InlineKeyboardButton(text="👥 Рефералы", callback_data="ref")],
-        [InlineKeyboardButton(text="📄 О боте", callback_data="about")],
-        [InlineKeyboardButton(text="🛡️Admin", callback_data="admin")]
+        [InlineKeyboardButton(text="💎 Тарифы", callback_data="buy"), InlineKeyboardButton(text="📦 Мои покупки", callback_data="my")],
+        [InlineKeyboardButton(text="👥 Рефералы", callback_data="ref"), InlineKeyboardButton(text="🛡️Admin", callback_data="admin")],
+        [InlineKeyboardButton(text="📄 О боте", callback_data="about")]
     ])
 
 @dp.message(Command("start"))
@@ -379,8 +377,7 @@ async def cb(callback: types.CallbackQuery):
             vip_count = cursor.fetchone()[0]
 
             kb = [
-                [InlineKeyboardButton(text="📩 Рассылка всем", callback_data="b_all")],
-                [InlineKeyboardButton(text="👑 Рассылка VIP", callback_data="b_vip")],
+                [InlineKeyboardButton(text="📩 Рассылка всем", callback_data="b_all"), InlineKeyboardButton(text="👑 Рассылка VIP", callback_data="b_vip")],
                 [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
             ]
 
