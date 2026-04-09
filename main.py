@@ -59,13 +59,11 @@ cities = [
     "Самара","Омск","Краснодар","Воронеж","Пермь","Татарстан"
 ]
 
-# Обычные предметы (для всех городов)
 subjects_base = [
     "Математика","Русский","Английский","Информатика","Физика",
     "Химия","Биология","Общество","История","География"
 ]
 
-# Города где есть татарский язык
 tatar_cities = ["Казань", "Татарстан"]
 
 def get_subjects(city):
@@ -107,13 +105,12 @@ def main_menu():
         [InlineKeyboardButton(text="📦 Мои покупки", callback_data="my")],
         [InlineKeyboardButton(text="👥 Рефералы", callback_data="ref")],
         [InlineKeyboardButton(text="📄 О боте", callback_data="about")],
-        [InlineKeyboardButton(text="👑 Админ", callback_data="admin")]
+        [InlineKeyboardButton(text="🛡️Admin", callback_data="admin")]
     ])
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
     user_id = message.from_user.id
-    print(f"START от user_id: {user_id}")  # Для отладки
     
     ref = None
     if len(message.text.split()) > 1:
@@ -137,7 +134,6 @@ async def start(message: types.Message):
 @dp.message()
 async def handle_text(message: types.Message):
     user_id = message.from_user.id
-    print(f"Сообщение от user_id: {user_id}")  # Для отладки
     
     if user_id in waiting_variant:
         text = message.text.strip()
@@ -189,7 +185,6 @@ async def handle_text(message: types.Message):
 @dp.callback_query()
 async def cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
-    print(f"Callback от user_id: {user_id}, data: {callback.data}")  # Для отладки
 
     if callback.data == "check_sub":
         if await check_sub(user_id):
@@ -318,27 +313,32 @@ async def cb(callback: types.CallbackQuery):
         )
 
     elif callback.data == "admin":
-        print(f"Админка: user_id={user_id}, ADMIN_IDS={ADMIN_IDS}, проверка={user_id in ADMIN_IDS}")
-        if user_id not in ADMIN_IDS:
-            await callback.answer("❌ Нет доступа", show_alert=True)
-            return
+        if user_id in ADMIN_IDS:
+            cursor.execute("SELECT COUNT(*) FROM users")
+            total = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(*) FROM users WHERE invited >= 5")
+            vip_count = cursor.fetchone()[0]
 
-        cursor.execute("SELECT COUNT(*) FROM users")
-        total = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT COUNT(*) FROM users WHERE invited >= 5")
-        vip_count = cursor.fetchone()[0]
+            kb = [
+                [InlineKeyboardButton(text="📩 Рассылка всем", callback_data="b_all")],
+                [InlineKeyboardButton(text="👑 Рассылка VIP", callback_data="b_vip")],
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+            ]
 
-        kb = [
-            [InlineKeyboardButton(text="📩 Рассылка всем", callback_data="b_all")],
-            [InlineKeyboardButton(text="👑 Рассылка VIP", callback_data="b_vip")],
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
-        ]
-
-        await callback.message.edit_text(
-            f"👑 Админ-панель\n\n👥 Всего юзеров: {total}\n👑 VIP юзеров: {vip_count}",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
-        )
+            await callback.message.edit_text(
+                f"👑 Админ-панель\n\n👥 Всего юзеров: {total}\n👑 VIP юзеров: {vip_count}",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
+            )
+        else:
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="📩 Написать админу", url="https://t.me/rebuttq")],
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+            ])
+            await callback.message.edit_text(
+                "🛡️Admin\n\nЕсли есть вопросы — напиши нам!",
+                reply_markup=kb
+            )
 
     elif callback.data == "b_all":
         if user_id not in ADMIN_IDS:
