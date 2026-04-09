@@ -10,7 +10,7 @@ from aiogram.filters import Command
 
 TOKEN = "8730940207:AAFOWZbt_NpaTkx4WYSEu8iQjj2UAiKaGQ0"
 
-ADMIN_IDS = [8079396037, -5156716017]
+ADMIN_IDS = [8079396037, 1780613456]
 CHANNEL_ID = "@FunPayProfitLab"
 BOT_USERNAME = "BoostSkoopiBot"
 
