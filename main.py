@@ -206,14 +206,36 @@ async def cb(callback: types.CallbackQuery):
             await callback.answer("❌ Ты не подписан!", show_alert=True)
 
     elif callback.data == "buy":
-        kb = [[InlineKeyboardButton(text=c, callback_data=f"city|{c}")] for c in cities]
+        # Города в 3 столбца
+        kb = []
+        row = []
+        for c in cities:
+            row.append(InlineKeyboardButton(text=c, callback_data=f"city|{c}"))
+            if len(row) == 3:
+                kb.append(row)
+                row = []
+        if row:
+            kb.append(row)
         kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back")])
         await callback.message.edit_text("🏙 Выбери город:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
     elif callback.data.startswith("city|"):
         city = callback.data.split("|")[1]
         subjects = get_subjects(city)
-        kb = [[InlineKeyboardButton(text=s, callback_data=f"sub|{city}|{s}")] for s in subjects]
+        
+        # Предметы в 2 столбца
+        kb = []
+        row = []
+        for s in subjects:
+            row.append(InlineKeyboardButton(text=s, callback_data=f"sub|{city}|{s}"))
+            if len(row) == 2:
+                kb.append(row)
+                row = []
+        if row:
+            kb.append(row)
+        
+        # Кнопка "Все предметы"
+        kb.append([InlineKeyboardButton(text="🔥 Все предметы — 1500 ⭐️", callback_data=f"all|{city}")])
         kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="buy")])
         await callback.message.edit_text(f"📚 {city} — выбери предмет:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
