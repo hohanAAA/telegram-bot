@@ -17,7 +17,6 @@ BOT_USERNAME = "BoostSkoopiBot"
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# ===== БД =====
 conn = sqlite3.connect("bot.db", check_same_thread=False)
 cursor = conn.cursor()
 
@@ -41,7 +40,6 @@ conn.commit()
 broadcast_mode = {}
 waiting_variant = {}
 
-# ===== WEB =====
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -55,21 +53,18 @@ def run_web():
 
 threading.Thread(target=run_web, daemon=True).start()
 
-# ===== ГОРОДА =====
 cities = [
     "Москва","Санкт-Петербург","Новосибирск","Екатеринбург","Казань",
     "Красноярск","Нижний Новгород","Челябинск","Уфа","Ростов-на-Дону",
     "Самара","Омск","Краснодар","Воронеж","Пермь"
 ]
 
-# ===== ПРЕДМЕТЫ =====
 subjects = [
     "Математика","Русский","Английский","Информатика","Физика",
     "Химия","Биология","Общество","История","География",
     "Татарский язык"
 ]
 
-# ===== UTILS =====
 def add_user(user_id, ref=None):
     cursor.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
     if not cursor.fetchone():
@@ -107,7 +102,6 @@ def main_menu():
         [InlineKeyboardButton(text="👑 Админ", callback_data="admin")]
     ])
 
-# ===== START =====
 @dp.message(Command("start"))
 async def start(message: types.Message):
     ref = None
@@ -129,16 +123,13 @@ async def start(message: types.Message):
 
     await message.answer("🏠 Главное меню", reply_markup=main_menu())
 
-# ===== ОБРАБОТЧИК ТЕКСТА (номер варианта + рассылка) =====
 @dp.message()
 async def handle_text(message: types.Message):
     user_id = message.from_user.id
     
-    # Обработка ввода номера варианта
     if user_id in waiting_variant:
         text = message.text.strip()
         
-        # Проверяем что это число от 1 до 30
         if not text.isdigit():
             await message.answer("❌ Введи число от 1 до 30")
             return
@@ -148,11 +139,9 @@ async def handle_text(message: types.Message):
             await message.answer("❌ Номер варианта должен быть от 1 до 30")
             return
         
-        # Получаем сохранённые данные
         data = waiting_variant.pop(user_id)
         _, city, subject = data.split("|")
         
-        # Отправляем счёт на оплату
         await bot.send_invoice(
             chat_id=user_id,
             title=f"Вариант №{variant_num}",
@@ -164,13 +153,12 @@ async def handle_text(message: types.Message):
         )
         return
     
-    # Обработка рассылки от админа
     if user_id in broadcast_mode:
         mode = broadcast_mode.pop(user_id)
         
         if mode == "all":
             cursor.execute("SELECT user_id FROM users")
-        else:  # vip
+        else:
             cursor.execute("SELECT user_id FROM users WHERE invited >= 5")
         
         users = cursor.fetchall()
@@ -186,7 +174,6 @@ async def handle_text(message: types.Message):
         await message.answer(f"✅ Отправлено: {sent}")
         return
 
-# ===== CALLBACK =====
 @dp.callback_query()
 async def cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
@@ -346,14 +333,12 @@ async def cb(callback: types.CallbackQuery):
         await callback.message.answer("👑 Отправь сообщение для рассылки VIP:")
 
     elif callback.data == "back":
-        # Очищаем состояния при возврате
         waiting_variant.pop(user_id, None)
         broadcast_mode.pop(user_id, None)
         await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu())
 
     await callback.answer()
 
-# ===== ОБРАБОТКА ОПЛАТЫ =====
 @dp.pre_checkout_query()
 async def pre_checkout(query: types.PreCheckoutQuery):
     await query.answer(ok=True)
@@ -363,11 +348,9 @@ async def successful_payment(message: types.Message):
     user_id = message.from_user.id
     payload = message.successful_payment.invoice_payload
     
-    # Сохраняем покупку в БД
     cursor.execute("INSERT INTO purchases (user_id, item) VALUES (?, ?)", (user_id, payload))
     conn.commit()
     
-    # Уведомляем админов
     for admin_id in ADMIN_IDS:
         try:
             await bot.send_message(
@@ -379,7 +362,6 @@ async def successful_payment(message: types.Message):
     
     await message.answer("✅ Оплата прошла успешно!\n\n📦 Товар скоро будет отправлен.")
 
-# ===== RUN =====
 async def main():
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
