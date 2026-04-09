@@ -162,10 +162,10 @@ async def cb(callback: types.CallbackQuery):
         price30 = get_discount_price(user_id)
 
        kb = [
-    [InlineKeyboardButton(text="📄 1 вариант — 100 ⭐️", callback_data=f"t1|{city}|{subject}")],
-    [InlineKeyboardButton(text=f"📚 30 вариантов — {price30} ⭐️", callback_data=f"t30|{city}|{subject}")],
-    [InlineKeyboardButton(text="🔥 Все предметы — 1500 ⭐️", callback_data=f"all|{city}")],
-    [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"city|{city}")]
+        [InlineKeyboardButton(text="📄 1 вариант — 100 ⭐️", callback_data=f"t1|{city}|{subject}")],
+        [InlineKeyboardButton(text=f"📚 30 вариантов — {price30} ⭐️", callback_data=f"t30|{city}|{subject}")],
+        [InlineKeyboardButton(text="🔥 Все предметы — 1500 ⭐️", callback_data=f"all|{city}")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"city|{city}")]
 ]
 
         await callback.message.edit_text(f"{city} | {subject}", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
