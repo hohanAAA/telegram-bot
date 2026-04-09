@@ -101,7 +101,7 @@ async def check_sub(user_id):
 
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🛒 Купить", callback_data="buy")],
+        [InlineKeyboardButton(text="💎 Тарифы", callback_data="buy")],
         [InlineKeyboardButton(text="📦 Мои покупки", callback_data="my")],
         [InlineKeyboardButton(text="👥 Рефералы", callback_data="ref")],
         [InlineKeyboardButton(text="📄 О боте", callback_data="about")],
@@ -129,7 +129,14 @@ async def start(message: types.Message):
         await message.answer("❗ Подпишись на канал", reply_markup=kb)
         return
 
-    await message.answer("🏠 Главное меню", reply_markup=main_menu())
+    welcome_text = """🏠 Главное меню
+
+🔥 АКЦИЯ: -50% на всё!
+⏰ Только до 20 апреля!
+
+Выбери нужный раздел:"""
+
+    await message.answer(welcome_text, reply_markup=main_menu())
 
 @dp.message()
 async def handle_text(message: types.Message):
@@ -188,7 +195,13 @@ async def cb(callback: types.CallbackQuery):
 
     if callback.data == "check_sub":
         if await check_sub(user_id):
-            await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu())
+            welcome_text = """🏠 Главное меню
+
+🔥 АКЦИЯ: -50% на всё!
+⏰ Только до 20 апреля!
+
+Выбери нужный раздел:"""
+            await callback.message.edit_text(welcome_text, reply_markup=main_menu())
         else:
             await callback.answer("❌ Ты не подписан!", show_alert=True)
 
@@ -215,7 +228,15 @@ async def cb(callback: types.CallbackQuery):
             [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"city|{city}")]
         ]
 
-        await callback.message.edit_text(f"🎯 {city} | {subject}\n\nВыбери тариф:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+        tariff_text = f"""🎯 {city} | {subject}
+
+📄 1 вариант — 100⭐ ~(200)~
+📚 30 вариантов — {price30}⭐ ~(600)~
+🔥 Все предметы — 1500⭐ ~(3000)~
+
+Выбери тариф:"""
+
+        await callback.message.edit_text(tariff_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
     elif callback.data.startswith("t1|"):
         waiting_variant[user_id] = callback.data
@@ -355,7 +376,13 @@ async def cb(callback: types.CallbackQuery):
     elif callback.data == "back":
         waiting_variant.pop(user_id, None)
         broadcast_mode.pop(user_id, None)
-        await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu())
+        welcome_text = """🏠 Главное меню
+
+🔥 АКЦИЯ: -50% на всё!
+⏰ Только до 20 апреля!
+
+Выбери нужный раздел:"""
+        await callback.message.edit_text(welcome_text, reply_markup=main_menu())
 
     await callback.answer()
 
