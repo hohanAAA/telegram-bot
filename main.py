@@ -129,21 +129,84 @@ async def start(message: types.Message):
 
     await message.answer("🏠 Главное меню", reply_markup=main_menu())
 
+# ===== ОБРАБОТЧИК ТЕКСТА (номер варианта + рассылка) =====
+@dp.message()
+async def handle_text(message: types.Message):
+    user_id = message.from_user.id
+    
+    # Обработка ввода номера варианта
+    if user_id in waiting_variant:
+        text = message.text.strip()
+        
+        # Проверяем что это число от 1 до 30
+        if not text.isdigit():
+            await message.answer("❌ Введи число от 1 до 30")
+            return
+        
+        variant_num = int(text)
+        if variant_num < 1 or variant_num > 30:
+            await message.answer("❌ Номер варианта должен быть от 1 до 30")
+            return
+        
+        # Получаем сохранённые данные
+        data = waiting_variant.pop(user_id)
+        _, city, subject = data.split("|")
+        
+        # Отправляем счёт на оплату
+        await bot.send_invoice(
+            chat_id=user_id,
+            title=f"Вариант №{variant_num}",
+            description=f"{city} | {subject} | Вариант {variant_num}",
+            payload=f"t1|{city}|{subject}|{variant_num}|{user_id}",
+            provider_token="",
+            currency="XTR",
+            prices=[LabeledPrice(label="1 вариант", amount=100)]
+        )
+        return
+    
+    # Обработка рассылки от админа
+    if user_id in broadcast_mode:
+        mode = broadcast_mode.pop(user_id)
+        
+        if mode == "all":
+            cursor.execute("SELECT user_id FROM users")
+        else:  # vip
+            cursor.execute("SELECT user_id FROM users WHERE invited >= 5")
+        
+        users = cursor.fetchall()
+        sent = 0
+        
+        for (uid,) in users:
+            try:
+                await bot.copy_message(uid, user_id, message.message_id)
+                sent += 1
+            except:
+                pass
+        
+        await message.answer(f"✅ Отправлено: {sent}")
+        return
+
 # ===== CALLBACK =====
 @dp.callback_query()
 async def cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
 
-    if callback.data == "buy":
+    if callback.data == "check_sub":
+        if await check_sub(user_id):
+            await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu())
+        else:
+            await callback.answer("❌ Ты не подписан!", show_alert=True)
+
+    elif callback.data == "buy":
         kb = [[InlineKeyboardButton(text=c, callback_data=f"city|{c}")] for c in cities]
         kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back")])
-        await callback.message.edit_text("Выбери город:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+        await callback.message.edit_text("🏙 Выбери город:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
     elif callback.data.startswith("city|"):
         city = callback.data.split("|")[1]
         kb = [[InlineKeyboardButton(text=s, callback_data=f"sub|{city}|{s}")] for s in subjects]
         kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="buy")])
-        await callback.message.edit_text(city, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+        await callback.message.edit_text(f"📚 {city} — выбери предмет:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
     elif callback.data.startswith("sub|"):
         _, city, subject = callback.data.split("|")
@@ -156,23 +219,27 @@ async def cb(callback: types.CallbackQuery):
             [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"city|{city}")]
         ]
 
-        await callback.message.edit_text(f"{city} | {subject}", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+        await callback.message.edit_text(f"🎯 {city} | {subject}\n\nВыбери тариф:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
     elif callback.data.startswith("t1|"):
         waiting_variant[user_id] = callback.data
-        await callback.message.answer("✏️ Введи номер варианта (1-30)")
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="❌ Отмена", callback_data=f"sub|{callback.data.split('|')[1]}|{callback.data.split('|')[2]}")]
+        ])
+        await callback.message.edit_text("✏️ Введи номер варианта (1-30):", reply_markup=kb)
 
     elif callback.data.startswith("t30|"):
+        _, city, subject = callback.data.split("|")
         price = get_discount_price(user_id)
 
         await bot.send_invoice(
             chat_id=user_id,
             title="30 вариантов",
-            description=f"{price} ⭐️",
-            payload=f"{callback.data}|{user_id}",
+            description=f"{city} | {subject} | Все 30 вариантов",
+            payload=f"t30|{city}|{subject}|{user_id}",
             provider_token="",
             currency="XTR",
-            prices=[LabeledPrice(label="Оплата", amount=price)]
+            prices=[LabeledPrice(label="30 вариантов", amount=price)]
         )
 
     elif callback.data.startswith("all|"):
@@ -181,12 +248,27 @@ async def cb(callback: types.CallbackQuery):
         await bot.send_invoice(
             chat_id=user_id,
             title="Все предметы",
-            description=f"{city} | все предметы",
+            description=f"{city} | Все предметы (30 вариантов каждый)",
             payload=f"all|{city}|{user_id}",
             provider_token="",
             currency="XTR",
-            prices=[LabeledPrice(label="Оплата", amount=1500)]
+            prices=[LabeledPrice(label="Все предметы", amount=1500)]
         )
+
+    elif callback.data == "my":
+        cursor.execute("SELECT item FROM purchases WHERE user_id=?", (user_id,))
+        rows = cursor.fetchall()
+        
+        if rows:
+            items = "\n".join([f"• {row[0]}" for row in rows])
+            text = f"📦 Твои покупки:\n\n{items}"
+        else:
+            text = "📦 У тебя пока нет покупок"
+        
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+        ])
+        await callback.message.edit_text(text, reply_markup=kb)
 
     elif callback.data == "ref":
         invited = get_user(user_id)
@@ -196,18 +278,26 @@ async def cb(callback: types.CallbackQuery):
         link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
 
         kb = [
-            [InlineKeyboardButton(text="👑 Что дает VIP", callback_data="vip")],
+            [InlineKeyboardButton(text="👑 Что даёт VIP", callback_data="vip")],
             [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
         ]
 
-        await callback.message.edit_text(
-            f"👥 Приглашено: {invited}\n💰 Цена: {price}⭐\n👑 До VIP: {to_vip}\n\n{link}",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
-        )
+        text = f"""👥 Реферальная система
+
+📊 Приглашено друзей: {invited}
+💰 Твоя цена за 30 вариантов: {price}⭐
+👑 До VIP статуса: {to_vip} друзей
+
+🔗 Твоя ссылка:
+{link}
+
+💡 За каждого друга -20⭐ к цене!"""
+
+        await callback.message.edit_text(text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
     elif callback.data == "vip":
         await callback.message.edit_text(
-            "👑 VIP\n\nДаётся от 5 друзей\n\n⚡ Быстрая выдача\n⚡ Приоритет",
+            "👑 VIP статус\n\n✅ Даётся за 5 приглашённых друзей\n\n⚡ Быстрая выдача товара\n⚡ Приоритетная поддержка\n⚡ Максимальная скидка",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="⬅️ Назад", callback_data="ref")]
             ])
@@ -215,7 +305,7 @@ async def cb(callback: types.CallbackQuery):
 
     elif callback.data == "about":
         await callback.message.edit_text(
-            "📄 О боте\n\n🔥 ОГЭ без стресса\n\nВсе предметы и города\n\n⚡ Быстро и удобно",
+            "📄 О боте\n\n🔥 ОГЭ без стресса!\n\n✅ Все предметы\n✅ Все города\n✅ Варианты 1-30\n\n⚡ Быстро и удобно\n💎 Оплата звёздами Telegram",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
             ])
@@ -226,24 +316,68 @@ async def cb(callback: types.CallbackQuery):
             await callback.answer("❌ Нет доступа", show_alert=True)
             return
 
+        cursor.execute("SELECT COUNT(*) FROM users")
+        total = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM users WHERE invited >= 5")
+        vip_count = cursor.fetchone()[0]
+
         kb = [
-            [InlineKeyboardButton(text="📩 Всем", callback_data="b_all")],
-            [InlineKeyboardButton(text="👑 VIP", callback_data="b_vip")],
+            [InlineKeyboardButton(text="📩 Рассылка всем", callback_data="b_all")],
+            [InlineKeyboardButton(text="👑 Рассылка VIP", callback_data="b_vip")],
             [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
         ]
 
-        await callback.message.edit_text("Админка", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+        await callback.message.edit_text(
+            f"👑 Админ-панель\n\n👥 Всего юзеров: {total}\n👑 VIP юзеров: {vip_count}",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
+        )
 
     elif callback.data == "b_all":
+        if user_id not in ADMIN_IDS:
+            return
         broadcast_mode[user_id] = "all"
-        await callback.message.answer("Отправь сообщение")
+        await callback.message.answer("📩 Отправь сообщение для рассылки ВСЕМ:")
 
     elif callback.data == "b_vip":
+        if user_id not in ADMIN_IDS:
+            return
         broadcast_mode[user_id] = "vip"
-        await callback.message.answer("Отправь сообщение VIP")
+        await callback.message.answer("👑 Отправь сообщение для рассылки VIP:")
 
     elif callback.data == "back":
+        # Очищаем состояния при возврате
+        waiting_variant.pop(user_id, None)
+        broadcast_mode.pop(user_id, None)
         await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu())
+
+    await callback.answer()
+
+# ===== ОБРАБОТКА ОПЛАТЫ =====
+@dp.pre_checkout_query()
+async def pre_checkout(query: types.PreCheckoutQuery):
+    await query.answer(ok=True)
+
+@dp.message(lambda m: m.successful_payment)
+async def successful_payment(message: types.Message):
+    user_id = message.from_user.id
+    payload = message.successful_payment.invoice_payload
+    
+    # Сохраняем покупку в БД
+    cursor.execute("INSERT INTO purchases (user_id, item) VALUES (?, ?)", (user_id, payload))
+    conn.commit()
+    
+    # Уведомляем админов
+    for admin_id in ADMIN_IDS:
+        try:
+            await bot.send_message(
+                admin_id,
+                f"💰 Новая оплата!\n\n👤 ID: {user_id}\n📦 Товар: {payload}\n💵 Сумма: {message.successful_payment.total_amount}⭐"
+            )
+        except:
+            pass
+    
+    await message.answer("✅ Оплата прошла успешно!\n\n📦 Товар скоро будет отправлен.")
 
 # ===== RUN =====
 async def main():
