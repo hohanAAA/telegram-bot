@@ -138,6 +138,24 @@ async def start(message: types.Message):
 
     await message.answer(welcome_text, reply_markup=main_menu())
 
+@dp.message(Command("help"))
+async def help_cmd(message: types.Message):
+    help_text = """🆘 Помощь
+
+🎯 Как купить варианты:
+1. Нажми «💎 Тарифы»
+2. Выбери город
+3. Выбери предмет
+4. Выбери тариф и оплати
+
+👥 Рефералка:
+Приглашай друзей — получай скидку!
+
+❓ Остались вопросы?
+Жми «🛡️Admin» → «Написать админу»"""
+
+    await message.answer(help_text, reply_markup=main_menu())
+
 @dp.message()
 async def handle_text(message: types.Message):
     user_id = message.from_user.id
@@ -206,7 +224,6 @@ async def cb(callback: types.CallbackQuery):
             await callback.answer("❌ Ты не подписан!", show_alert=True)
 
     elif callback.data == "buy":
-        # Города в 3 столбца
         kb = []
         row = []
         for c in cities:
@@ -223,7 +240,6 @@ async def cb(callback: types.CallbackQuery):
         city = callback.data.split("|")[1]
         subjects = get_subjects(city)
         
-        # Предметы в 2 столбца
         kb = []
         row = []
         for s in subjects:
@@ -234,7 +250,6 @@ async def cb(callback: types.CallbackQuery):
         if row:
             kb.append(row)
         
-        # Кнопка "Все предметы"
         kb.append([InlineKeyboardButton(text="🔥 Все предметы — 1500 ⭐️", callback_data=f"all|{city}")])
         kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="buy")])
         await callback.message.edit_text(f"📚 {city} — выбери предмет:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
@@ -252,9 +267,9 @@ async def cb(callback: types.CallbackQuery):
 
         tariff_text = f"""🎯 {city} | {subject}
 
-📄 1 вариант — 100⭐ ~(200)~
-📚 30 вариантов — {price30}⭐ ~(600)~
-🔥 Все предметы — 1500⭐ ~(3000)~
+📄 1 вариант — 100⭐ (было 200⭐)
+📚 30 вариантов — {price30}⭐ (было 600⭐)
+🔥 Все предметы — 1500⭐ (было 3000⭐)
 
 Выбери тариф:"""
 
