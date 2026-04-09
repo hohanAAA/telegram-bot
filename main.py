@@ -55,23 +55,26 @@ def run_web():
 
 threading.Thread(target=run_web, daemon=True).start()
 
-# ===== ДАННЫЕ =====
+# ===== ГОРОДА =====
 cities = [
-    "Москва","СПБ","Казань","Новосибирск","Екатеринбург",
-    "Саратов","Тюмень"
+    "Москва","Санкт-Петербург","Новосибирск","Екатеринбург","Казань",
+    "Красноярск","Нижний Новгород","Челябинск","Уфа","Ростов-на-Дону",
+    "Самара","Омск","Краснодар","Воронеж","Пермь"
 ]
 
+# ===== ПРЕДМЕТЫ =====
 subjects = [
-    "Математика","Русский","Английский",
-    "Информатика","Физика"
+    "Математика","Русский","Английский","Информатика","Физика",
+    "Химия","Биология","Общество","История","География",
+    "Татарский язык"
 ]
 
 # ===== UTILS =====
 def add_user(user_id, ref=None):
     cursor.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
     if not cursor.fetchone():
-        if ref == user_id:
-            ref = None
+        if ref and ref != user_id:
+            cursor.execute("UPDATE users SET invited = invited + 1 WHERE user_id=?", (ref,))
         cursor.execute("INSERT INTO users (user_id, ref_by) VALUES (?, ?)", (user_id, ref))
         conn.commit()
 
@@ -131,19 +134,15 @@ async def start(message: types.Message):
 async def cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
 
-    if callback.data == "check_sub":
-        if await check_sub(user_id):
-            await callback.message.edit_text("✅ Подписка подтверждена", reply_markup=main_menu())
-        else:
-            await callback.answer("❌ Не подписан", show_alert=True)
-
-    elif callback.data == "buy":
+    if callback.data == "buy":
         kb = [[InlineKeyboardButton(text=c, callback_data=f"city|{c}")] for c in cities]
+        kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back")])
         await callback.message.edit_text("Выбери город:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
     elif callback.data.startswith("city|"):
         city = callback.data.split("|")[1]
         kb = [[InlineKeyboardButton(text=s, callback_data=f"sub|{city}|{s}")] for s in subjects]
+        kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="buy")])
         await callback.message.edit_text(city, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
     elif callback.data.startswith("sub|"):
@@ -153,7 +152,8 @@ async def cb(callback: types.CallbackQuery):
         kb = [
             [InlineKeyboardButton(text="📄 1 вариант — 100 ⭐️", callback_data=f"t1|{city}|{subject}")],
             [InlineKeyboardButton(text=f"📚 30 вариантов — {price30} ⭐️", callback_data=f"t30|{city}|{subject}")],
-            [InlineKeyboardButton(text="🔥 Все предметы — 1500 ⭐️", callback_data=f"all|{city}")]
+            [InlineKeyboardButton(text="🔥 Все предметы — 1500 ⭐️", callback_data=f"all|{city}")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"city|{city}")]
         ]
 
         await callback.message.edit_text(f"{city} | {subject}", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
@@ -167,7 +167,7 @@ async def cb(callback: types.CallbackQuery):
 
         await bot.send_invoice(
             chat_id=user_id,
-            title="Покупка",
+            title="30 вариантов",
             description=f"{price} ⭐️",
             payload=f"{callback.data}|{user_id}",
             provider_token="",
@@ -188,90 +188,62 @@ async def cb(callback: types.CallbackQuery):
             prices=[LabeledPrice(label="Оплата", amount=1500)]
         )
 
+    elif callback.data == "ref":
+        invited = get_user(user_id)
+        price = get_discount_price(user_id)
+        to_vip = max(5 - invited, 0)
+
+        link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
+
+        kb = [
+            [InlineKeyboardButton(text="👑 Что дает VIP", callback_data="vip")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+        ]
+
+        await callback.message.edit_text(
+            f"👥 Приглашено: {invited}\n💰 Цена: {price}⭐\n👑 До VIP: {to_vip}\n\n{link}",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
+        )
+
+    elif callback.data == "vip":
+        await callback.message.edit_text(
+            "👑 VIP\n\nДаётся от 5 друзей\n\n⚡ Быстрая выдача\n⚡ Приоритет",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data="ref")]
+            ])
+        )
+
+    elif callback.data == "about":
+        await callback.message.edit_text(
+            "📄 О боте\n\n🔥 ОГЭ без стресса\n\nВсе предметы и города\n\n⚡ Быстро и удобно",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+            ])
+        )
+
+    elif callback.data == "admin":
+        if user_id not in ADMIN_IDS:
+            await callback.answer("❌ Нет доступа", show_alert=True)
+            return
+
+        kb = [
+            [InlineKeyboardButton(text="📩 Всем", callback_data="b_all")],
+            [InlineKeyboardButton(text="👑 VIP", callback_data="b_vip")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]
+        ]
+
+        await callback.message.edit_text("Админка", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+
+    elif callback.data == "b_all":
+        broadcast_mode[user_id] = "all"
+        await callback.message.answer("Отправь сообщение")
+
+    elif callback.data == "b_vip":
+        broadcast_mode[user_id] = "vip"
+        await callback.message.answer("Отправь сообщение VIP")
+
     elif callback.data == "back":
         await callback.message.edit_text("🏠 Главное меню", reply_markup=main_menu())
-
-# ===== ОПЛАТА =====
-@dp.pre_checkout_query()
-async def pre_checkout(pre_checkout_query: types.PreCheckoutQuery):
-    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
-
-@dp.message(lambda m: m.successful_payment)
-async def success_payment(message: types.Message):
-    payload = message.successful_payment.invoice_payload
-    data = payload.split("|")
-
-    try:
-        user_id = int(data[-1])
-
-        if data[0] == "all":
-            city = data[1]
-            item = f"{city} | ВСЕ ПРЕДМЕТЫ"
-        else:
-            city = data[1]
-            subject = data[2]
-            item = f"{city} | {subject} | 30 вариантов"
-
-        cursor.execute("INSERT INTO purchases (user_id, item) VALUES (?, ?)", (user_id, item))
-        conn.commit()
-
-    except:
-        pass
-
-    await message.answer("✅ Оплата прошла и сохранена!")
-
-# ===== MESSAGE =====
-@dp.message()
-async def msg(message: types.Message):
-    user_id = message.from_user.id
-
-    # вариант
-    if user_id in waiting_variant:
-        try:
-            num = int(message.text)
-            if num < 1 or num > 30:
-                await message.answer("❗ Введи число от 1 до 30")
-                return
-
-            data = waiting_variant[user_id]
-            del waiting_variant[user_id]
-
-            _, city, subject = data.split("|")
-
-            item = f"{city} | {subject} | вариант {num}"
-
-            cursor.execute("INSERT INTO purchases (user_id, item) VALUES (?, ?)", (user_id, item))
-            conn.commit()
-
-            await message.answer(f"✅ Куплен вариант {num}")
-
-        except:
-            await message.answer("❗ Введи число")
-        return
-
-    # рассылка
-    if user_id not in broadcast_mode:
-        return
-
-    mode = broadcast_mode[user_id]
-    del broadcast_mode[user_id]
-
-    cursor.execute("SELECT user_id FROM users")
-    users = cursor.fetchall()
-
-    for u in users:
-        try:
-            if mode == "vip" and not is_vip(u[0]):
-                continue
-
-            if message.photo:
-                await bot.send_photo(u[0], message.photo[-1].file_id, caption=message.caption or "")
-            else:
-                await bot.send_message(u[0], message.text)
-        except:
-            pass
-
-    await message.answer("✅ Готово")
 
 # ===== RUN =====
 async def main():
