@@ -8,7 +8,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice
 from aiogram.filters import Command
 
-TOKEN = os.getenv("TOKEN")
+TOKEN = "8730940207:AAFOWZbt_NpaTkx4WYSEu8iQjj2UAiKaGQ0"
 
 ADMIN_IDS = [8079396037, 5156716817]
 CHANNEL_ID = "@FunPayProfitLab"
