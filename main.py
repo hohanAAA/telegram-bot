@@ -10,7 +10,7 @@ from aiogram.filters import Command
 
 TOKEN = "8730940207:AAFOWZbt_NpaTkx4WYSEu8iQjj2UAiKaGQ0"
 
-ADMIN_IDS = [8079396037, 5156716817]
+ADMIN_IDS = [8079396037, -5156716017]
 CHANNEL_ID = "@FunPayProfitLab"
 BOT_USERNAME = "BoostSkoopiBot"
 
@@ -56,14 +56,22 @@ threading.Thread(target=run_web, daemon=True).start()
 cities = [
     "Москва","Санкт-Петербург","Новосибирск","Екатеринбург","Казань",
     "Красноярск","Нижний Новгород","Челябинск","Уфа","Ростов-на-Дону",
-    "Самара","Омск","Краснодар","Воронеж","Пермь"
+    "Самара","Омск","Краснодар","Воронеж","Пермь","Татарстан"
 ]
 
-subjects = [
+# Обычные предметы (для всех городов)
+subjects_base = [
     "Математика","Русский","Английский","Информатика","Физика",
-    "Химия","Биология","Общество","История","География",
-    "Татарский язык"
+    "Химия","Биология","Общество","История","География"
 ]
+
+# Города где есть татарский язык
+tatar_cities = ["Казань", "Татарстан"]
+
+def get_subjects(city):
+    if city in tatar_cities:
+        return subjects_base + ["Татарский язык"]
+    return subjects_base
 
 def add_user(user_id, ref=None):
     cursor.execute("SELECT * FROM users WHERE user_id=?", (user_id,))
@@ -104,6 +112,9 @@ def main_menu():
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
+    user_id = message.from_user.id
+    print(f"START от user_id: {user_id}")  # Для отладки
+    
     ref = None
     if len(message.text.split()) > 1:
         try:
@@ -111,9 +122,9 @@ async def start(message: types.Message):
         except:
             pass
 
-    add_user(message.from_user.id, ref)
+    add_user(user_id, ref)
 
-    if not await check_sub(message.from_user.id):
+    if not await check_sub(user_id):
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📢 Подписаться", url="https://t.me/FunPayProfitLab")],
             [InlineKeyboardButton(text="✅ Проверить", callback_data="check_sub")]
@@ -126,6 +137,7 @@ async def start(message: types.Message):
 @dp.message()
 async def handle_text(message: types.Message):
     user_id = message.from_user.id
+    print(f"Сообщение от user_id: {user_id}")  # Для отладки
     
     if user_id in waiting_variant:
         text = message.text.strip()
@@ -177,6 +189,7 @@ async def handle_text(message: types.Message):
 @dp.callback_query()
 async def cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
+    print(f"Callback от user_id: {user_id}, data: {callback.data}")  # Для отладки
 
     if callback.data == "check_sub":
         if await check_sub(user_id):
@@ -191,6 +204,7 @@ async def cb(callback: types.CallbackQuery):
 
     elif callback.data.startswith("city|"):
         city = callback.data.split("|")[1]
+        subjects = get_subjects(city)
         kb = [[InlineKeyboardButton(text=s, callback_data=f"sub|{city}|{s}")] for s in subjects]
         kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="buy")])
         await callback.message.edit_text(f"📚 {city} — выбери предмет:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
@@ -304,6 +318,7 @@ async def cb(callback: types.CallbackQuery):
         )
 
     elif callback.data == "admin":
+        print(f"Админка: user_id={user_id}, ADMIN_IDS={ADMIN_IDS}, проверка={user_id in ADMIN_IDS}")
         if user_id not in ADMIN_IDS:
             await callback.answer("❌ Нет доступа", show_alert=True)
             return
