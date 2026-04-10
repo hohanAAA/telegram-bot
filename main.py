@@ -7,12 +7,14 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice
 from aiogram.filters import Command
+from urllib.parse import quote
 
 TOKEN = "8730940207:AAFOWZbt_NpaTkx4WYSEu8iQjj2UAiKaGQ0"
 
 ADMIN_IDS = [8079396037, 1780613456]
 CHANNEL_ID = "@FunPayProfitLab"
 BOT_USERNAME = "BoostSkoopiBot"
+ADMIN_USERNAME = "rebuttq"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -88,6 +90,9 @@ def get_discount_price(user_id):
     invited = get_user(user_id)
     discount = min(invited * 20, 100)
     return 300 - discount
+
+def stars_to_rub(stars):
+    return int(stars * 1.6)
 
 def is_vip(user_id):
     return get_user(user_id) >= 5
@@ -173,15 +178,25 @@ async def handle_text(message: types.Message):
         data = waiting_variant.pop(user_id)
         _, city, subject = data.split("|")
         
-        await bot.send_invoice(
-            chat_id=user_id,
-            title=f"Вариант №{variant_num}",
-            description=f"{city} | {subject} | Вариант {variant_num}",
-            payload=f"t1|{city}|{subject}|{variant_num}|{user_id}",
-            provider_token="",
-            currency="XTR",
-            prices=[LabeledPrice(label="1 вариант", amount=100)]
-        )
+        # Показываем выбор способа оплаты
+        stars = 100
+        rub = stars_to_rub(stars)
+        
+        pay_text = f"""🎯 {city} | {subject} | Вариант №{variant_num}
+
+💰 Стоимость: {stars}⭐ = {rub}₽
+
+Выбери способ оплаты:"""
+        
+        transfer_msg = quote(f"Хочу оплатить переводом:\n📍 Город: {city}\n📚 Предмет: {subject}\n📄 Тариф: 1 вариант (№{variant_num})\n💰 Сумма: {stars}⭐ = {rub}₽")
+        
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=f"⭐ Оплата звёздами ({stars}⭐)", callback_data=f"pay_stars|t1|{city}|{subject}|{variant_num}")],
+            [InlineKeyboardButton(text=f"💳 Оплата переводом ({rub}₽)", url=f"https://t.me/{ADMIN_USERNAME}?text={transfer_msg}")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"sub|{city}|{subject}")]
+        ])
+        
+        await message.answer(pay_text, reply_markup=kb)
         return
     
     if user_id in broadcast_mode:
@@ -283,29 +298,91 @@ async def cb(callback: types.CallbackQuery):
     elif callback.data.startswith("t30|"):
         _, city, subject = callback.data.split("|")
         price = get_discount_price(user_id)
+        rub = stars_to_rub(price)
+        
+        pay_text = f"""🎯 {city} | {subject} | 30 вариантов
 
-        await bot.send_invoice(
-            chat_id=user_id,
-            title="30 вариантов",
-            description=f"{city} | {subject} | Все 30 вариантов",
-            payload=f"t30|{city}|{subject}|{user_id}",
-            provider_token="",
-            currency="XTR",
-            prices=[LabeledPrice(label="30 вариантов", amount=price)]
-        )
+💰 Стоимость: {price}⭐ = {rub}₽
+
+Выбери способ оплаты:"""
+        
+        transfer_msg = quote(f"Хочу оплатить переводом:\n📍 Город: {city}\n📚 Предмет: {subject}\n📄 Тариф: 30 вариантов\n💰 Сумма: {price}⭐ = {rub}₽")
+        
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=f"⭐ Оплата звёздами ({price}⭐)", callback_data=f"pay_stars|t30|{city}|{subject}")],
+            [InlineKeyboardButton(text=f"💳 Оплата переводом ({rub}₽)", url=f"https://t.me/{ADMIN_USERNAME}?text={transfer_msg}")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"sub|{city}|{subject}")]
+        ])
+        
+        await callback.message.edit_text(pay_text, reply_markup=kb)
 
     elif callback.data.startswith("all|"):
         city = callback.data.split("|")[1]
+        stars = 1500
+        rub = stars_to_rub(stars)
+        
+        pay_text = f"""🎯 {city} | Все предметы (30 вариантов каждый)
 
-        await bot.send_invoice(
-            chat_id=user_id,
-            title="Все предметы",
-            description=f"{city} | Все предметы (30 вариантов каждый)",
-            payload=f"all|{city}|{user_id}",
-            provider_token="",
-            currency="XTR",
-            prices=[LabeledPrice(label="Все предметы", amount=1500)]
-        )
+💰 Стоимость: {stars}⭐ = {rub}₽
+
+Выбери способ оплаты:"""
+        
+        transfer_msg = quote(f"Хочу оплатить переводом:\n📍 Город: {city}\n📄 Тариф: Все предметы (30 вариантов каждый)\n💰 Сумма: {stars}⭐ = {rub}₽")
+        
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=f"⭐ Оплата звёздами ({stars}⭐)", callback_data=f"pay_stars|all|{city}")],
+            [InlineKeyboardButton(text=f"💳 Оплата переводом ({rub}₽)", url=f"https://t.me/{ADMIN_USERNAME}?text={transfer_msg}")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data=f"city|{city}")]
+        ])
+        
+        await callback.message.edit_text(pay_text, reply_markup=kb)
+
+    elif callback.data.startswith("pay_stars|"):
+        parts = callback.data.split("|")
+        tariff_type = parts[1]
+        
+        if tariff_type == "t1":
+            city = parts[2]
+            subject = parts[3]
+            variant_num = parts[4]
+            
+            await bot.send_invoice(
+                chat_id=user_id,
+                title=f"Вариант №{variant_num}",
+                description=f"{city} | {subject} | Вариант {variant_num}",
+                payload=f"t1|{city}|{subject}|{variant_num}|{user_id}",
+                provider_token="",
+                currency="XTR",
+                prices=[LabeledPrice(label="1 вариант", amount=100)]
+            )
+        
+        elif tariff_type == "t30":
+            city = parts[2]
+            subject = parts[3]
+            price = get_discount_price(user_id)
+            
+            await bot.send_invoice(
+                chat_id=user_id,
+                title="30 вариантов",
+                description=f"{city} | {subject} | Все 30 вариантов",
+                payload=f"t30|{city}|{subject}|{user_id}",
+                provider_token="",
+                currency="XTR",
+                prices=[LabeledPrice(label="30 вариантов", amount=price)]
+            )
+        
+        elif tariff_type == "all":
+            city = parts[2]
+            
+            await bot.send_invoice(
+                chat_id=user_id,
+                title="Все предметы",
+                description=f"{city} | Все предметы (30 вариантов каждый)",
+                payload=f"all|{city}|{user_id}",
+                provider_token="",
+                currency="XTR",
+                prices=[LabeledPrice(label="Все предметы", amount=1500)]
+            )
 
     elif callback.data == "my":
         cursor.execute("SELECT item FROM purchases WHERE user_id=?", (user_id,))
