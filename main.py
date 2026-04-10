@@ -56,7 +56,7 @@ def run_web():
 threading.Thread(target=run_web, daemon=True).start()
 
 cities = [
-    "Москва","Санкт-Петербург","Новосибирск","Екатеринбург","Казань",
+    "Москва","Санкт-Петербург","Новосибирск","Екатеринбург",
     "Красноярск","Нижний Новгород","Челябинск","Уфа","Ростов-на-Дону",
     "Самара","Омск","Краснодар","Воронеж","Пермь","Татарстан"
 ]
@@ -74,7 +74,7 @@ ege_subjects_base = [
     "Информатика","География","Литература"
 ]
 
-tatar_cities = ["Казань", "Татарстан"]
+tatar_cities = ["Татарстан"]
 
 # Цены ОГЭ
 OGE_PRICE_1 = 100
@@ -202,7 +202,7 @@ async def handle_text(message: types.Message):
         
         data = waiting_variant.pop(user_id)
         parts = data.split("|")
-        exam_type = parts[0]  # t1_oge или t1_ege
+        exam_type = parts[0]
         city = parts[1]
         subject = parts[2]
 
