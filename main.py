@@ -77,17 +77,17 @@ ege_subjects_base = [
 
 tatar_cities = ["Татарстан"]
 
-# ===== ЦЕНЫ ОГЭ (уже со скидкой -50%) =====
-OGE_PRICE_1 = 100       # было 200⭐
-OGE_PRICE_30 = 300      # было 600⭐
-OGE_PRICE_ALL = 1500    # было 3000⭐
+# ===== ЦЕНЫ ОГЭ (со скидкой -50%) =====
+OGE_PRICE_1 = 100
+OGE_PRICE_30 = 300
+OGE_PRICE_ALL = 1500
 
-# ===== ЦЕНЫ ЕГЭ (уже со скидкой -50%) =====
-EGE_PRICE_1 = 120       # было 240⭐
-EGE_PRICE_30 = 360      # было 720⭐
-EGE_PRICE_ALL = 1800    # было 3600⭐
+# ===== ЦЕНЫ ЕГЭ (со скидкой -50%) =====
+EGE_PRICE_1 = 120
+EGE_PRICE_30 = 360
+EGE_PRICE_ALL = 1800
 
-# ===== СТАРЫЕ ЦЕНЫ (для отображения "было") =====
+# ===== СТАРЫЕ ЦЕНЫ =====
 OGE_OLD_1 = 200
 OGE_OLD_30 = 600
 OGE_OLD_ALL = 3000
@@ -340,11 +340,6 @@ async def cb(callback: types.CallbackQuery):
         _, city, subject = callback.data.split("|")
         price30 = get_discount_price(user_id, OGE_PRICE_30)
 
-        if price30 < OGE_PRICE_30:
-            price30_text = f"{price30}⭐ (стандарт {OGE_PRICE_30}⭐)"
-        else:
-            price30_text = f"{price30}⭐"
-
         kb = [
             [InlineKeyboardButton(text=f"📄 1 вариант — {OGE_PRICE_1}⭐️", callback_data=f"t1_oge|{city}|{subject}")],
             [InlineKeyboardButton(text=f"📚 30 вариантов — {price30}⭐️", callback_data=f"t30_oge|{city}|{subject}")],
@@ -355,7 +350,7 @@ async def cb(callback: types.CallbackQuery):
         tariff_text = f"""📘 ОГЭ | {city} | {subject}
 
 📄 1 вариант — {OGE_PRICE_1}⭐ (было {OGE_OLD_1}⭐)
-📚 30 вариантов — {price30_text} (было {OGE_OLD_30}⭐)
+📚 30 вариантов — {price30}⭐ (было {OGE_OLD_30}⭐)
 🔥 Все предметы — {OGE_PRICE_ALL}⭐ (было {OGE_OLD_ALL}⭐)
 
 ⏰ Акция -50% до 20 апреля!
@@ -470,11 +465,6 @@ async def cb(callback: types.CallbackQuery):
         _, city, subject = callback.data.split("|")
         price30 = get_discount_price(user_id, EGE_PRICE_30)
 
-        if price30 < EGE_PRICE_30:
-            price30_text = f"{price30}⭐ (стандарт {EGE_PRICE_30}⭐)"
-        else:
-            price30_text = f"{price30}⭐"
-
         kb = [
             [InlineKeyboardButton(text=f"📄 1 вариант — {EGE_PRICE_1}⭐️", callback_data=f"t1_ege|{city}|{subject}")],
             [InlineKeyboardButton(text=f"📚 30 вариантов — {price30}⭐️", callback_data=f"t30_ege|{city}|{subject}")],
@@ -485,7 +475,7 @@ async def cb(callback: types.CallbackQuery):
         tariff_text = f"""📗 ЕГЭ | {city} | {subject}
 
 📄 1 вариант — {EGE_PRICE_1}⭐ (было {EGE_OLD_1}⭐)
-📚 30 вариантов — {price30_text} (было {EGE_OLD_30}⭐)
+📚 30 вариантов — {price30}⭐ (было {EGE_OLD_30}⭐)
 🔥 Все предметы — {EGE_PRICE_ALL}⭐ (было {EGE_OLD_ALL}⭐)
 
 ⏰ Акция -50% до 20 апреля!
@@ -539,7 +529,7 @@ async def cb(callback: types.CallbackQuery):
         pay_text = f"""📗 ЕГЭ | {city} | Все предметы
 
 💰 Стоимость: {EGE_PRICE_ALL}⭐ = {rub}₽
-📉 Было: {EGE_OLD_ALL}⭐
+📉 Було: {EGE_OLD_ALL}⭐
 
 Выбери способ оплаты:"""
 
