@@ -77,17 +77,24 @@ ege_subjects_base = [
 
 tatar_cities = ["Татарстан"]
 
-# ===== ЦЕНЫ ОГЭ =====
-OGE_PRICE_1 = 100
-OGE_PRICE_30 = 300
-OGE_PRICE_ALL = 1500
+# ===== ЦЕНЫ ОГЭ (уже со скидкой -50%) =====
+OGE_PRICE_1 = 100       # было 200⭐
+OGE_PRICE_30 = 300      # было 600⭐
+OGE_PRICE_ALL = 1500    # было 3000⭐
 
-# ===== ЦЕНЫ ЕГЭ (+20%) =====
-EGE_PRICE_1 = 120
-EGE_PRICE_30 = 360
-EGE_PRICE_ALL = 1800
+# ===== ЦЕНЫ ЕГЭ (уже со скидкой -50%) =====
+EGE_PRICE_1 = 120       # было 240⭐
+EGE_PRICE_30 = 360      # было 720⭐
+EGE_PRICE_ALL = 1800    # было 3600⭐
 
-# ===== ФУНКЦИИ =====
+# ===== СТАРЫЕ ЦЕНЫ (для отображения "было") =====
+OGE_OLD_1 = 200
+OGE_OLD_30 = 600
+OGE_OLD_ALL = 3000
+EGE_OLD_1 = 240
+EGE_OLD_30 = 720
+EGE_OLD_ALL = 3600
+
 def get_oge_subjects(city):
     if city in tatar_cities:
         return oge_subjects_base + ["Татарский язык"]
@@ -116,7 +123,6 @@ def get_discount_price(user_id, base_price):
     discount_percent = min(invited * 20, 100)
     discount = int(base_price * discount_percent / 100)
     result = base_price - discount
-    # Минимальная цена для ОГЭ 200, для ЕГЭ 260
     if base_price == OGE_PRICE_30:
         return max(result, 200)
     if base_price == EGE_PRICE_30:
@@ -150,7 +156,6 @@ def main_menu():
         [InlineKeyboardButton(text="📄 О боте", callback_data="about")]
     ])
 
-# ===== КОМАНДА START =====
 @dp.message(Command("start"))
 async def start(message: types.Message):
     user_id = message.from_user.id
@@ -181,7 +186,6 @@ async def start(message: types.Message):
 
     await message.answer(welcome_text, reply_markup=main_menu())
 
-# ===== КОМАНДА HELP =====
 @dp.message(Command("help"))
 async def help_cmd(message: types.Message):
     help_text = """🆘 Помощь
@@ -200,7 +204,6 @@ async def help_cmd(message: types.Message):
 
     await message.answer(help_text, reply_markup=main_menu())
 
-# ===== ОБРАБОТЧИК ТЕКСТА =====
 @dp.message()
 async def handle_text(message: types.Message):
     user_id = message.from_user.id
@@ -225,9 +228,11 @@ async def handle_text(message: types.Message):
 
         if "ege" in exam_type:
             stars = EGE_PRICE_1
+            old_stars = EGE_OLD_1
             exam_label = "ЕГЭ"
         else:
             stars = OGE_PRICE_1
+            old_stars = OGE_OLD_1
             exam_label = "ОГЭ"
 
         rub = stars_to_rub(stars)
@@ -235,6 +240,7 @@ async def handle_text(message: types.Message):
         pay_text = f"""🎯 {exam_label} | {city} | {subject} | Вариант №{variant_num}
 
 💰 Стоимость: {stars}⭐ = {rub}₽
+📉 Было: {old_stars}⭐
 
 Выбери способ оплаты:"""
 
@@ -276,12 +282,10 @@ async def handle_text(message: types.Message):
         await message.answer(f"✅ Отправлено: {sent}")
         return
 
-# ===== CALLBACK =====
 @dp.callback_query()
 async def cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
 
-    # ===== ПРОВЕРКА ПОДПИСКИ =====
     if callback.data == "check_sub":
         if await check_sub(user_id):
             welcome_text = """🏠 Главное меню
@@ -336,7 +340,6 @@ async def cb(callback: types.CallbackQuery):
         _, city, subject = callback.data.split("|")
         price30 = get_discount_price(user_id, OGE_PRICE_30)
 
-        # Показываем скидку только если она есть
         if price30 < OGE_PRICE_30:
             price30_text = f"{price30}⭐ (стандарт {OGE_PRICE_30}⭐)"
         else:
@@ -351,9 +354,11 @@ async def cb(callback: types.CallbackQuery):
 
         tariff_text = f"""📘 ОГЭ | {city} | {subject}
 
-📄 1 вариант — {OGE_PRICE_1}⭐
-📚 30 вариантов — {price30_text}
-🔥 Все предметы — {OGE_PRICE_ALL}⭐
+📄 1 вариант — {OGE_PRICE_1}⭐ (было {OGE_OLD_1}⭐)
+📚 30 вариантов — {price30_text} (было {OGE_OLD_30}⭐)
+🔥 Все предметы — {OGE_PRICE_ALL}⭐ (было {OGE_OLD_ALL}⭐)
+
+⏰ Акция -50% до 20 апреля!
 
 Выбери тариф:"""
 
@@ -377,6 +382,7 @@ async def cb(callback: types.CallbackQuery):
         pay_text = f"""📘 ОГЭ | {city} | {subject} | 30 вариантов
 
 💰 Стоимость: {price}⭐ = {rub}₽
+📉 Было: {OGE_OLD_30}⭐
 
 Выбери способ оплаты:"""
 
@@ -403,6 +409,7 @@ async def cb(callback: types.CallbackQuery):
         pay_text = f"""📘 ОГЭ | {city} | Все предметы
 
 💰 Стоимость: {OGE_PRICE_ALL}⭐ = {rub}₽
+📉 Было: {OGE_OLD_ALL}⭐
 
 Выбери способ оплаты:"""
 
@@ -463,7 +470,6 @@ async def cb(callback: types.CallbackQuery):
         _, city, subject = callback.data.split("|")
         price30 = get_discount_price(user_id, EGE_PRICE_30)
 
-        # Показываем скидку только если она есть
         if price30 < EGE_PRICE_30:
             price30_text = f"{price30}⭐ (стандарт {EGE_PRICE_30}⭐)"
         else:
@@ -478,9 +484,11 @@ async def cb(callback: types.CallbackQuery):
 
         tariff_text = f"""📗 ЕГЭ | {city} | {subject}
 
-📄 1 вариант — {EGE_PRICE_1}⭐
-📚 30 вариантов — {price30_text}
-🔥 Все предметы — {EGE_PRICE_ALL}⭐
+📄 1 вариант — {EGE_PRICE_1}⭐ (было {EGE_OLD_1}⭐)
+📚 30 вариантов — {price30_text} (было {EGE_OLD_30}⭐)
+🔥 Все предметы — {EGE_PRICE_ALL}⭐ (было {EGE_OLD_ALL}⭐)
+
+⏰ Акция -50% до 20 апреля!
 
 Выбери тариф:"""
 
@@ -504,6 +512,7 @@ async def cb(callback: types.CallbackQuery):
         pay_text = f"""📗 ЕГЭ | {city} | {subject} | 30 вариантов
 
 💰 Стоимость: {price}⭐ = {rub}₽
+📉 Было: {EGE_OLD_30}⭐
 
 Выбери способ оплаты:"""
 
@@ -530,6 +539,7 @@ async def cb(callback: types.CallbackQuery):
         pay_text = f"""📗 ЕГЭ | {city} | Все предметы
 
 💰 Стоимость: {EGE_PRICE_ALL}⭐ = {rub}₽
+📉 Было: {EGE_OLD_ALL}⭐
 
 Выбери способ оплаты:"""
 
@@ -786,4 +796,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-    
