@@ -19,7 +19,7 @@ CHANNEL_ID = "@FunPayProfitLab"
 BOT_USERNAME = "BoostSkoopiBot"
 ADMIN_USERNAME = "rebuttq"
 MATERIAL_LINK = "https://ibb.co/zTzXHSS2"
-LOG_CHAT_ID = -5209976771
+LOG_CHAT_ID = -1003702648876
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
