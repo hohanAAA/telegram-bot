@@ -2,6 +2,9 @@ import os
 import sqlite3
 import asyncio
 import threading
+import random
+import string
+from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import quote
 
@@ -15,6 +18,7 @@ ADMIN_IDS = [8079396037, 1780613456]
 CHANNEL_ID = "@FunPayProfitLab"
 BOT_USERNAME = "BoostSkoopiBot"
 ADMIN_USERNAME = "rebuttq"
+MATERIAL_LINK = "https://ibb.co/zTzXHSS2"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -33,7 +37,19 @@ CREATE TABLE IF NOT EXISTS users (
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS purchases (
     user_id INTEGER,
-    item TEXT
+    item TEXT,
+    amount INTEGER DEFAULT 0,
+    date TEXT
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS tokens (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER,
+    item TEXT,
+    used INTEGER DEFAULT 0,
+    created_at TEXT
 )
 """)
 
@@ -48,6 +64,9 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b"OK")
 
+    def log_message(self, format, *args):
+        pass
+
 def run_web():
     port = int(os.environ.get("PORT", 10000))
     server = HTTPServer(("0.0.0.0", port), Handler)
@@ -55,11 +74,23 @@ def run_web():
 
 threading.Thread(target=run_web, daemon=True).start()
 
-# ===== ГОРОДА =====
+# ===== ГОРОДА С ЧАСОВЫМИ ПОЯСАМИ =====
 cities = [
-    "Москва", "Санкт-Петербург", "Новосибирск", "Екатеринбург",
-    "Красноярск", "Нижний Новгород", "Челябинск", "Уфа", "Ростов-на-Дону",
-    "Самара", "Омск", "Краснодар", "Воронеж", "Пермь", "Татарстан"
+    ("Москва", "UTC+3"),
+    ("Санкт-Петербург", "UTC+3"),
+    ("Новосибирск", "UTC+7"),
+    ("Екатеринбург", "UTC+5"),
+    ("Красноярск", "UTC+7"),
+    ("Нижний Новгород", "UTC+3"),
+    ("Челябинск", "UTC+5"),
+    ("Уфа", "UTC+5"),
+    ("Ростов-на-Дону", "UTC+3"),
+    ("Самара", "UTC+4"),
+    ("Омск", "UTC+6"),
+    ("Краснодар", "UTC+3"),
+    ("Воронеж", "UTC+3"),
+    ("Пермь", "UTC+5"),
+    ("Татарстан", "UTC+3"),
 ]
 
 # ===== ПРЕДМЕТЫ ОГЭ =====
@@ -94,6 +125,15 @@ OGE_OLD_ALL = 3000
 EGE_OLD_1 = 240
 EGE_OLD_30 = 720
 EGE_OLD_ALL = 3600
+
+def get_city_names():
+    return [c[0] for c in cities]
+
+def get_city_tz(city_name):
+    for c in cities:
+        if c[0] == city_name:
+            return c[1]
+    return ""
 
 def get_oge_subjects(city):
     if city in tatar_cities:
@@ -135,6 +175,30 @@ def stars_to_rub(stars):
 def is_vip(user_id):
     return get_user(user_id) >= 5
 
+def generate_token():
+    chars = string.ascii_uppercase + string.digits
+    return "OGE-" + "".join(random.choices(chars, k=8))
+
+def create_token(user_id, item):
+    token = generate_token()
+    # Проверяем уникальность
+    while cursor.execute("SELECT * FROM tokens WHERE token=?", (token,)).fetchone():
+        token = generate_token()
+    cursor.execute(
+        "INSERT INTO tokens (token, user_id, item, used, created_at) VALUES (?, ?, ?, 0, ?)",
+        (token, user_id, item, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    )
+    conn.commit()
+    return token
+
+def use_token(token):
+    row = cursor.execute("SELECT * FROM tokens WHERE token=? AND used=0", (token,)).fetchone()
+    if row:
+        cursor.execute("UPDATE tokens SET used=1 WHERE token=?", (token,))
+        conn.commit()
+        return True
+    return False
+
 async def check_sub(user_id):
     try:
         member = await bot.get_chat_member(CHANNEL_ID, user_id)
@@ -156,6 +220,21 @@ def main_menu():
         [InlineKeyboardButton(text="📄 О боте", callback_data="about")]
     ])
 
+def build_city_kb(exam_type):
+    kb = []
+    row = []
+    for city_name, tz in cities:
+        btn_text = f"{city_name} ({tz})"
+        row.append(InlineKeyboardButton(text=btn_text, callback_data=f"city_{exam_type}|{city_name}"))
+        if len(row) == 2:
+            kb.append(row)
+            row = []
+    if row:
+        kb.append(row)
+    kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back")])
+    return kb
+
+# ===== КОМАНДА START =====
 @dp.message(Command("start"))
 async def start(message: types.Message):
     user_id = message.from_user.id
@@ -186,6 +265,7 @@ async def start(message: types.Message):
 
     await message.answer(welcome_text, reply_markup=main_menu())
 
+# ===== КОМАНДА HELP =====
 @dp.message(Command("help"))
 async def help_cmd(message: types.Message):
     help_text = """🆘 Помощь
@@ -195,6 +275,7 @@ async def help_cmd(message: types.Message):
 2. Выбери город
 3. Выбери предмет
 4. Выбери тариф и оплати
+5. Получи токен и активируй за 48 часов до экзамена
 
 👥 Рефералка:
 Приглашай друзей — получай скидку!
@@ -204,13 +285,31 @@ async def help_cmd(message: types.Message):
 
     await message.answer(help_text, reply_markup=main_menu())
 
+# ===== ОБРАБОТЧИК ТЕКСТА =====
 @dp.message()
 async def handle_text(message: types.Message):
     user_id = message.from_user.id
 
-    if user_id in waiting_variant:
-        text = message.text.strip()
+    # ===== ПРОВЕРКА ТОКЕНА =====
+    text = message.text.strip() if message.text else ""
 
+    if text.startswith("OGE-") and len(text) == 12:
+        if use_token(text):
+            await message.answer(
+                f"✅ Токен активирован!\n\n"
+                f"📦 Вот твой материал:\n"
+                f"🔗 {MATERIAL_LINK}\n\n"
+                f"⚠️ Токен использован. Повторно использовать нельзя."
+            )
+        else:
+            await message.answer(
+                "❌ Токен недействителен или уже использован!\n\n"
+                "Проверь токен и попробуй снова."
+            )
+        return
+
+    # ===== ВВОД НОМЕРА ВАРИАНТА =====
+    if user_id in waiting_variant:
         if not text.isdigit():
             await message.answer("❌ Введи число от 1 до 30")
             return
@@ -261,6 +360,7 @@ async def handle_text(message: types.Message):
         await message.answer(pay_text, reply_markup=kb)
         return
 
+    # ===== РАССЫЛКА =====
     if user_id in broadcast_mode:
         mode = broadcast_mode.pop(user_id)
 
@@ -282,6 +382,7 @@ async def handle_text(message: types.Message):
         await message.answer(f"✅ Отправлено: {sent}")
         return
 
+# ===== CALLBACK =====
 @dp.callback_query()
 async def cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
@@ -300,24 +401,16 @@ async def cb(callback: types.CallbackQuery):
 
     # ===== ОГЭ =====
     elif callback.data == "oge":
-        kb = []
-        row = []
-        for c in cities:
-            row.append(InlineKeyboardButton(text=c, callback_data=f"city_oge|{c}"))
-            if len(row) == 3:
-                kb.append(row)
-                row = []
-        if row:
-            kb.append(row)
-        kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back")])
+        kb = build_city_kb("oge")
         await callback.message.edit_text(
-            "📘 ОГЭ — Выбери город:",
+            "📘 ОГЭ — Выбери город:\n\n💡 Не нашёл свой город? Выбери тот, в котором тот же часовой пояс!",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
         )
 
     elif callback.data.startswith("city_oge|"):
         city = callback.data.split("|")[1]
         subjects = get_oge_subjects(city)
+        tz = get_city_tz(city)
 
         kb = []
         row = []
@@ -332,7 +425,7 @@ async def cb(callback: types.CallbackQuery):
         kb.append([InlineKeyboardButton(text=f"🔥 Все предметы — {OGE_PRICE_ALL}⭐️", callback_data=f"all_oge|{city}")])
         kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="oge")])
         await callback.message.edit_text(
-            f"📘 ОГЭ | {city} — выбери предмет:",
+            f"📘 ОГЭ | {city} ({tz}) — выбери предмет:",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
         )
 
@@ -425,24 +518,16 @@ async def cb(callback: types.CallbackQuery):
 
     # ===== ЕГЭ =====
     elif callback.data == "ege":
-        kb = []
-        row = []
-        for c in cities:
-            row.append(InlineKeyboardButton(text=c, callback_data=f"city_ege|{c}"))
-            if len(row) == 3:
-                kb.append(row)
-                row = []
-        if row:
-            kb.append(row)
-        kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="back")])
+        kb = build_city_kb("ege")
         await callback.message.edit_text(
-            "📗 ЕГЭ — Выбери город:",
+            "📗 ЕГЭ — Выбери город:\n\n💡 Не нашёл свой город? Выбери тот, в котором тот же часовой пояс!",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
         )
 
     elif callback.data.startswith("city_ege|"):
         city = callback.data.split("|")[1]
         subjects = get_ege_subjects(city)
+        tz = get_city_tz(city)
 
         kb = []
         row = []
@@ -457,7 +542,7 @@ async def cb(callback: types.CallbackQuery):
         kb.append([InlineKeyboardButton(text=f"🔥 Все предметы — {EGE_PRICE_ALL}⭐️", callback_data=f"all_ege|{city}")])
         kb.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="ege")])
         await callback.message.edit_text(
-            f"📗 ЕГЭ | {city} — выбери предмет:",
+            f"📗 ЕГЭ | {city} ({tz}) — выбери предмет:",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
         )
 
@@ -529,7 +614,7 @@ async def cb(callback: types.CallbackQuery):
         pay_text = f"""📗 ЕГЭ | {city} | Все предметы
 
 💰 Стоимость: {EGE_PRICE_ALL}⭐ = {rub}₽
-📉 Було: {EGE_OLD_ALL}⭐
+📉 Было: {EGE_OLD_ALL}⭐
 
 Выбери способ оплаты:"""
 
@@ -704,6 +789,13 @@ async def cb(callback: types.CallbackQuery):
             cursor.execute("SELECT COUNT(*) FROM users WHERE invited >= 5")
             vip_count = cursor.fetchone()[0]
 
+            # Статистика оплат звёздами
+            cursor.execute("SELECT COUNT(*), SUM(amount) FROM purchases WHERE amount > 0")
+            row = cursor.fetchone()
+            total_orders = row[0] or 0
+            total_stars = row[1] or 0
+            total_rub = stars_to_rub(total_stars)
+
             kb = [
                 [
                     InlineKeyboardButton(text="📩 Рассылка всем", callback_data="b_all"),
@@ -713,7 +805,13 @@ async def cb(callback: types.CallbackQuery):
             ]
 
             await callback.message.edit_text(
-                f"👑 Админ-панель\n\n👥 Всего юзеров: {total}\n👑 VIP юзеров: {vip_count}",
+                f"👑 Админ-панель\n\n"
+                f"👥 Всего юзеров: {total}\n"
+                f"👑 VIP юзеров: {vip_count}\n\n"
+                f"💰 Статистика оплат (звёзды):\n"
+                f"📦 Всего заказов: {total_orders}\n"
+                f"⭐ Всего звёзд: {total_stars}⭐\n"
+                f"💵 В рублях: ~{total_rub}₽",
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=kb)
             )
         else:
@@ -761,10 +859,19 @@ async def pre_checkout(query: types.PreCheckoutQuery):
 async def successful_payment(message: types.Message):
     user_id = message.from_user.id
     payload = message.successful_payment.invoice_payload
+    amount = message.successful_payment.total_amount
 
-    cursor.execute("INSERT INTO purchases (user_id, item) VALUES (?, ?)", (user_id, payload))
+    # Сохраняем покупку с суммой и датой
+    cursor.execute(
+        "INSERT INTO purchases (user_id, item, amount, date) VALUES (?, ?, ?, ?)",
+        (user_id, payload, amount, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    )
     conn.commit()
 
+    # Генерируем токен
+    token = create_token(user_id, payload)
+
+    # Уведомляем админов
     for admin_id in ADMIN_IDS:
         try:
             await bot.send_message(
@@ -772,12 +879,20 @@ async def successful_payment(message: types.Message):
                 f"💰 Новая оплата!\n\n"
                 f"👤 ID: {user_id}\n"
                 f"📦 Товар: {payload}\n"
-                f"💵 Сумма: {message.successful_payment.total_amount}⭐"
+                f"💵 Сумма: {amount}⭐ = {stars_to_rub(amount)}₽"
             )
         except:
             pass
 
-    await message.answer("✅ Оплата прошла успешно!\n\n📦 Товар скоро будет отправлен.")
+    # Отправляем токен пользователю
+    await message.answer(
+        f"✅ Оплата прошла успешно!\n\n"
+        f"🔑 Твой токен:\n"
+        f"`{token}`\n\n"
+        f"⚠️ Отправь этот токен боту за 48 часов до начала экзамена чтобы получить материал\n\n"
+        f"Просто скопируй и вставь токен в этот чат!",
+        parse_mode="Markdown"
+    )
 
 # ===== ЗАПУСК =====
 async def main():
