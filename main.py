@@ -19,6 +19,7 @@ CHANNEL_ID = "@FunPayProfitLab"
 BOT_USERNAME = "BoostSkoopiBot"
 ADMIN_USERNAME = "rebuttq"
 MATERIAL_LINK = "https://ibb.co/zTzXHSS2"
+LOG_CHAT_ID = -5209976771
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -126,6 +127,19 @@ EGE_OLD_1 = 240
 EGE_OLD_30 = 720
 EGE_OLD_ALL = 3600
 
+# ===== ЛОГИРОВАНИЕ =====
+async def log_action(user_id, username, action):
+    try:
+        name = f"@{username}" if username else f"ID:{user_id}"
+        await bot.send_message(
+            LOG_CHAT_ID,
+            f"👤 {name} ({user_id})\n"
+            f"🔘 {action}\n"
+            f"🕐 {datetime.now().strftime('%H:%M:%S')}"
+        )
+    except:
+        pass
+
 def get_city_names():
     return [c[0] for c in cities]
 
@@ -181,7 +195,6 @@ def generate_token():
 
 def create_token(user_id, item):
     token = generate_token()
-    # Проверяем уникальность
     while cursor.execute("SELECT * FROM tokens WHERE token=?", (token,)).fetchone():
         token = generate_token()
     cursor.execute(
@@ -238,6 +251,7 @@ def build_city_kb(exam_type):
 @dp.message(Command("start"))
 async def start(message: types.Message):
     user_id = message.from_user.id
+    username = message.from_user.username
 
     ref = None
     if len(message.text.split()) > 1:
@@ -247,6 +261,8 @@ async def start(message: types.Message):
             pass
 
     add_user(user_id, ref)
+
+    await log_action(user_id, username, "🚀 Запустил бота /start")
 
     if not await check_sub(user_id):
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -268,6 +284,11 @@ async def start(message: types.Message):
 # ===== КОМАНДА HELP =====
 @dp.message(Command("help"))
 async def help_cmd(message: types.Message):
+    user_id = message.from_user.id
+    username = message.from_user.username
+
+    await log_action(user_id, username, "❓ Написал /help")
+
     help_text = """🆘 Помощь
 
 🎯 Как купить варианты:
@@ -289,11 +310,12 @@ async def help_cmd(message: types.Message):
 @dp.message()
 async def handle_text(message: types.Message):
     user_id = message.from_user.id
-
-    # ===== ПРОВЕРКА ТОКЕНА =====
+    username = message.from_user.username
     text = message.text.strip() if message.text else ""
 
+    # ===== ПРОВЕРКА ТОКЕНА =====
     if text.startswith("OGE-") and len(text) == 12:
+        await log_action(user_id, username, f"🔑 Вставил токен: {text}")
         if use_token(text):
             await message.answer(
                 f"✅ Токен активирован!\n\n"
@@ -335,6 +357,8 @@ async def handle_text(message: types.Message):
             exam_label = "ОГЭ"
 
         rub = stars_to_rub(stars)
+
+        await log_action(user_id, username, f"✏️ Ввёл вариант №{variant_num} | {exam_label} | {city} | {subject}")
 
         pay_text = f"""🎯 {exam_label} | {city} | {subject} | Вариант №{variant_num}
 
@@ -386,9 +410,11 @@ async def handle_text(message: types.Message):
 @dp.callback_query()
 async def cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
+    username = callback.from_user.username
 
     if callback.data == "check_sub":
         if await check_sub(user_id):
+            await log_action(user_id, username, "✅ Подписался на канал")
             welcome_text = """🏠 Главное меню
 
 🔥 АКЦИЯ: -50% на всё!
@@ -401,6 +427,7 @@ async def cb(callback: types.CallbackQuery):
 
     # ===== ОГЭ =====
     elif callback.data == "oge":
+        await log_action(user_id, username, "📘 Открыл ОГЭ")
         kb = build_city_kb("oge")
         await callback.message.edit_text(
             "📘 ОГЭ — Выбери город:\n\n💡 Не нашёл свой город? Выбери тот, в котором тот же часовой пояс!",
@@ -409,8 +436,9 @@ async def cb(callback: types.CallbackQuery):
 
     elif callback.data.startswith("city_oge|"):
         city = callback.data.split("|")[1]
-        subjects = get_oge_subjects(city)
         tz = get_city_tz(city)
+        await log_action(user_id, username, f"📘 ОГЭ → Выбрал город: {city} ({tz})")
+        subjects = get_oge_subjects(city)
 
         kb = []
         row = []
@@ -431,6 +459,7 @@ async def cb(callback: types.CallbackQuery):
 
     elif callback.data.startswith("sub_oge|"):
         _, city, subject = callback.data.split("|")
+        await log_action(user_id, username, f"📘 ОГЭ → {city} → Выбрал предмет: {subject}")
         price30 = get_discount_price(user_id, OGE_PRICE_30)
 
         kb = [
@@ -453,17 +482,20 @@ async def cb(callback: types.CallbackQuery):
         await callback.message.edit_text(tariff_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
     elif callback.data.startswith("t1_oge|"):
+        _, city, subject = callback.data.split("|")
+        await log_action(user_id, username, f"📘 ОГЭ → {city} → {subject} → Выбрал: 1 вариант")
         waiting_variant[user_id] = callback.data
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(
                 text="❌ Отмена",
-                callback_data=f"sub_oge|{callback.data.split('|')[1]}|{callback.data.split('|')[2]}"
+                callback_data=f"sub_oge|{city}|{subject}"
             )]
         ])
         await callback.message.edit_text("✏️ Введи номер варианта (1-30):", reply_markup=kb)
 
     elif callback.data.startswith("t30_oge|"):
         _, city, subject = callback.data.split("|")
+        await log_action(user_id, username, f"📘 ОГЭ → {city} → {subject} → Выбрал: 30 вариантов")
         price = get_discount_price(user_id, OGE_PRICE_30)
         rub = stars_to_rub(price)
 
@@ -492,6 +524,7 @@ async def cb(callback: types.CallbackQuery):
 
     elif callback.data.startswith("all_oge|"):
         city = callback.data.split("|")[1]
+        await log_action(user_id, username, f"📘 ОГЭ → {city} → Выбрал: Все предметы")
         rub = stars_to_rub(OGE_PRICE_ALL)
 
         pay_text = f"""📘 ОГЭ | {city} | Все предметы
@@ -518,6 +551,7 @@ async def cb(callback: types.CallbackQuery):
 
     # ===== ЕГЭ =====
     elif callback.data == "ege":
+        await log_action(user_id, username, "📗 Открыл ЕГЭ")
         kb = build_city_kb("ege")
         await callback.message.edit_text(
             "📗 ЕГЭ — Выбери город:\n\n💡 Не нашёл свой город? Выбери тот, в котором тот же часовой пояс!",
@@ -526,8 +560,9 @@ async def cb(callback: types.CallbackQuery):
 
     elif callback.data.startswith("city_ege|"):
         city = callback.data.split("|")[1]
-        subjects = get_ege_subjects(city)
         tz = get_city_tz(city)
+        await log_action(user_id, username, f"📗 ЕГЭ → Выбрал город: {city} ({tz})")
+        subjects = get_ege_subjects(city)
 
         kb = []
         row = []
@@ -548,6 +583,7 @@ async def cb(callback: types.CallbackQuery):
 
     elif callback.data.startswith("sub_ege|"):
         _, city, subject = callback.data.split("|")
+        await log_action(user_id, username, f"📗 ЕГЭ → {city} → Выбрал предмет: {subject}")
         price30 = get_discount_price(user_id, EGE_PRICE_30)
 
         kb = [
@@ -570,17 +606,20 @@ async def cb(callback: types.CallbackQuery):
         await callback.message.edit_text(tariff_text, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
 
     elif callback.data.startswith("t1_ege|"):
+        _, city, subject = callback.data.split("|")
+        await log_action(user_id, username, f"📗 ЕГЭ → {city} → {subject} → Выбрал: 1 вариант")
         waiting_variant[user_id] = callback.data
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(
                 text="❌ Отмена",
-                callback_data=f"sub_ege|{callback.data.split('|')[1]}|{callback.data.split('|')[2]}"
+                callback_data=f"sub_ege|{city}|{subject}"
             )]
         ])
         await callback.message.edit_text("✏️ Введи номер варианта (1-30):", reply_markup=kb)
 
     elif callback.data.startswith("t30_ege|"):
         _, city, subject = callback.data.split("|")
+        await log_action(user_id, username, f"📗 ЕГЭ → {city} → {subject} → Выбрал: 30 вариантов")
         price = get_discount_price(user_id, EGE_PRICE_30)
         rub = stars_to_rub(price)
 
@@ -609,6 +648,7 @@ async def cb(callback: types.CallbackQuery):
 
     elif callback.data.startswith("all_ege|"):
         city = callback.data.split("|")[1]
+        await log_action(user_id, username, f"📗 ЕГЭ → {city} → Выбрал: Все предметы")
         rub = stars_to_rub(EGE_PRICE_ALL)
 
         pay_text = f"""📗 ЕГЭ | {city} | Все предметы
@@ -640,6 +680,7 @@ async def cb(callback: types.CallbackQuery):
 
         if tariff_type == "t1_oge":
             city, subject, variant_num = parts[2], parts[3], parts[4]
+            await log_action(user_id, username, f"⭐ Оплата звёздами: ОГЭ | {city} | {subject} | Вариант №{variant_num}")
             await bot.send_invoice(
                 chat_id=user_id,
                 title=f"ОГЭ | Вариант №{variant_num}",
@@ -652,6 +693,7 @@ async def cb(callback: types.CallbackQuery):
 
         elif tariff_type == "t30_oge":
             city, subject = parts[2], parts[3]
+            await log_action(user_id, username, f"⭐ Оплата звёздами: ОГЭ | {city} | {subject} | 30 вариантов")
             price = get_discount_price(user_id, OGE_PRICE_30)
             await bot.send_invoice(
                 chat_id=user_id,
@@ -665,6 +707,7 @@ async def cb(callback: types.CallbackQuery):
 
         elif tariff_type == "all_oge":
             city = parts[2]
+            await log_action(user_id, username, f"⭐ Оплата звёздами: ОГЭ | {city} | Все предметы")
             await bot.send_invoice(
                 chat_id=user_id,
                 title="ОГЭ | Все предметы",
@@ -677,6 +720,7 @@ async def cb(callback: types.CallbackQuery):
 
         elif tariff_type == "t1_ege":
             city, subject, variant_num = parts[2], parts[3], parts[4]
+            await log_action(user_id, username, f"⭐ Оплата звёздами: ЕГЭ | {city} | {subject} | Вариант №{variant_num}")
             await bot.send_invoice(
                 chat_id=user_id,
                 title=f"ЕГЭ | Вариант №{variant_num}",
@@ -689,6 +733,7 @@ async def cb(callback: types.CallbackQuery):
 
         elif tariff_type == "t30_ege":
             city, subject = parts[2], parts[3]
+            await log_action(user_id, username, f"⭐ Оплата звёздами: ЕГЭ | {city} | {subject} | 30 вариантов")
             price = get_discount_price(user_id, EGE_PRICE_30)
             await bot.send_invoice(
                 chat_id=user_id,
@@ -702,6 +747,7 @@ async def cb(callback: types.CallbackQuery):
 
         elif tariff_type == "all_ege":
             city = parts[2]
+            await log_action(user_id, username, f"⭐ Оплата звёздами: ЕГЭ | {city} | Все предметы")
             await bot.send_invoice(
                 chat_id=user_id,
                 title="ЕГЭ | Все предметы",
@@ -714,6 +760,7 @@ async def cb(callback: types.CallbackQuery):
 
     # ===== МОИ ПОКУПКИ =====
     elif callback.data == "my":
+        await log_action(user_id, username, "📦 Открыл Мои покупки")
         cursor.execute("SELECT item FROM purchases WHERE user_id=?", (user_id,))
         rows = cursor.fetchall()
 
@@ -730,6 +777,7 @@ async def cb(callback: types.CallbackQuery):
 
     # ===== РЕФЕРАЛЫ =====
     elif callback.data == "ref":
+        await log_action(user_id, username, "👥 Открыл Рефералы")
         invited = get_user(user_id)
         price_oge = get_discount_price(user_id, OGE_PRICE_30)
         price_ege = get_discount_price(user_id, EGE_PRICE_30)
@@ -764,6 +812,7 @@ async def cb(callback: types.CallbackQuery):
 
     # ===== VIP =====
     elif callback.data == "vip":
+        await log_action(user_id, username, "👑 Открыл VIP")
         await callback.message.edit_text(
             "👑 VIP статус\n\n✅ Даётся за 5 приглашённых друзей\n\n⚡ Быстрая выдача товара\n⚡ Приоритетная поддержка\n⚡ Максимальная скидка",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -773,6 +822,7 @@ async def cb(callback: types.CallbackQuery):
 
     # ===== О БОТЕ =====
     elif callback.data == "about":
+        await log_action(user_id, username, "📄 Открыл О боте")
         await callback.message.edit_text(
             "📄 О боте\n\n🔥 ОГЭ и ЕГЭ без стресса!\n\n📘 Все предметы ОГЭ\n📗 Все предметы ЕГЭ\n🏙 Все города России\n📝 Варианты 1-30\n\n⚡ Быстро и удобно\n💎 Оплата звёздами или переводом",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -789,7 +839,6 @@ async def cb(callback: types.CallbackQuery):
             cursor.execute("SELECT COUNT(*) FROM users WHERE invited >= 5")
             vip_count = cursor.fetchone()[0]
 
-            # Статистика оплат звёздами
             cursor.execute("SELECT COUNT(*), SUM(amount) FROM purchases WHERE amount > 0")
             row = cursor.fetchone()
             total_orders = row[0] or 0
@@ -858,20 +907,20 @@ async def pre_checkout(query: types.PreCheckoutQuery):
 @dp.message(lambda m: m.successful_payment)
 async def successful_payment(message: types.Message):
     user_id = message.from_user.id
+    username = message.from_user.username
     payload = message.successful_payment.invoice_payload
     amount = message.successful_payment.total_amount
 
-    # Сохраняем покупку с суммой и датой
     cursor.execute(
         "INSERT INTO purchases (user_id, item, amount, date) VALUES (?, ?, ?, ?)",
         (user_id, payload, amount, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     )
     conn.commit()
 
-    # Генерируем токен
     token = create_token(user_id, payload)
 
-    # Уведомляем админов
+    await log_action(user_id, username, f"💰 ОПЛАТИЛ! {amount}⭐ = {stars_to_rub(amount)}₽ | {payload}")
+
     for admin_id in ADMIN_IDS:
         try:
             await bot.send_message(
@@ -884,7 +933,6 @@ async def successful_payment(message: types.Message):
         except:
             pass
 
-    # Отправляем токен пользователю
     await message.answer(
         f"✅ Оплата прошла успешно!\n\n"
         f"🔑 Твой токен:\n"
