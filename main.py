@@ -15,7 +15,6 @@ from aiogram.filters import Command
 TOKEN = "8730940207:AAFOWZbt_NpaTkx4WYSEu8iQjj2UAiKaGQ0"
 
 ADMIN_IDS = [8079396037, 1780613456]
-CHANNEL_ID = "@FunPayProfitLab"
 BOT_USERNAME = "BoostSkoopiBot"
 ADMIN_USERNAME = "rebuttq"
 MATERIAL_LINK = "https://ibb.co/zTzXHSS2"
@@ -118,17 +117,17 @@ vpr_subjects = {
 
 tatar_cities = ["Татарстан"]
 
-# ===== ЦЕНЫ ОГЭ (со скидкой -50%) =====
+# ===== ЦЕНЫ ОГЭ =====
 OGE_PRICE_1 = 100
 OGE_PRICE_30 = 300
 OGE_PRICE_ALL = 1500
 
-# ===== ЦЕНЫ ЕГЭ (со скидкой -50%) =====
+# ===== ЦЕНЫ ЕГЭ =====
 EGE_PRICE_1 = 120
 EGE_PRICE_30 = 360
 EGE_PRICE_ALL = 1800
 
-# ===== ЦЕНЫ ВПР (со скидкой -50%) =====
+# ===== ЦЕНЫ ВПР =====
 VPR_PRICE_1 = 100
 VPR_PRICE_30 = 300
 VPR_PRICE_ALL = 1500
@@ -225,13 +224,6 @@ def use_token(token):
         return True
     return False
 
-async def check_sub(user_id):
-    try:
-        member = await bot.get_chat_member(CHANNEL_ID, user_id)
-        return member.status in ["member", "administrator", "creator"]
-    except:
-        return False
-
 def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -279,22 +271,10 @@ async def start(message: types.Message):
     add_user(user_id, ref)
     await log_action(user_id, username, "🚀 Запустил бота /start")
 
-    if not await check_sub(user_id):
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📢 Подписаться", url="https://t.me/FunPayProfitLab")],
-            [InlineKeyboardButton(text="✅ Проверить", callback_data="check_sub")]
-        ])
-        await message.answer("❗ Подпишись на канал", reply_markup=kb)
-        return
-
-    welcome_text = """🏠 Главное меню
-
-🔥 АКЦИЯ: -50% на всё!
-⏰ Только до 20 апреля!
-
-Выбери нужный раздел:"""
-
-    await message.answer(welcome_text, reply_markup=main_menu())
+    await message.answer(
+        "🏠 Главное меню\n\nВыбери нужный раздел:",
+        reply_markup=main_menu()
+    )
 
 # ===== КОМАНДА HELP =====
 @dp.message(Command("help"))
@@ -382,7 +362,6 @@ async def handle_text(message: types.Message):
         pay_text = f"""🎯 {exam_label} | {city} | {subject} | Вариант №{variant_num}
 
 💰 Стоимость: {stars}⭐ = {rub}₽
-📉 Было: {old_stars}⭐
 
 Выбери способ оплаты:"""
 
@@ -431,21 +410,8 @@ async def cb(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     username = callback.from_user.username
 
-    if callback.data == "check_sub":
-        if await check_sub(user_id):
-            await log_action(user_id, username, "✅ Подписался на канал")
-            welcome_text = """🏠 Главное меню
-
-🔥 АКЦИЯ: -50% на всё!
-⏰ Только до 20 апреля!
-
-Выбери нужный раздел:"""
-            await callback.message.edit_text(welcome_text, reply_markup=main_menu())
-        else:
-            await callback.answer("❌ Ты не подписан!", show_alert=True)
-
     # ===== ОГЭ =====
-    elif callback.data == "oge":
+    if callback.data == "oge":
         await log_action(user_id, username, "📘 Открыл ОГЭ")
         kb = build_city_kb("oge")
         await callback.message.edit_text(
@@ -490,11 +456,9 @@ async def cb(callback: types.CallbackQuery):
 
         tariff_text = f"""📘 ОГЭ | {city} | {subject}
 
-📄 1 вариант — {OGE_PRICE_1}⭐ (было {OGE_OLD_1}⭐)
-📚 30 вариантов — {price30}⭐ (было {OGE_OLD_30}⭐)
-🔥 Все предметы — {OGE_PRICE_ALL}⭐ (было {OGE_OLD_ALL}⭐)
-
-⏰ Акция -50% до 20 апреля!
+📄 1 вариант — {OGE_PRICE_1}⭐
+📚 30 вариантов — {price30}⭐
+🔥 Все предметы — {OGE_PRICE_ALL}⭐
 
 Выбери тариф:"""
 
@@ -518,7 +482,6 @@ async def cb(callback: types.CallbackQuery):
         pay_text = f"""📘 ОГЭ | {city} | {subject} | 30 вариантов
 
 💰 Стоимость: {price}⭐ = {rub}₽
-📉 Было: {OGE_OLD_30}⭐
 
 Выбери способ оплаты:"""
 
@@ -546,7 +509,6 @@ async def cb(callback: types.CallbackQuery):
         pay_text = f"""📘 ОГЭ | {city} | Все предметы
 
 💰 Стоимость: {OGE_PRICE_ALL}⭐ = {rub}₽
-📉 Было: {OGE_OLD_ALL}⭐
 
 Выбери способ оплаты:"""
 
@@ -611,11 +573,9 @@ async def cb(callback: types.CallbackQuery):
 
         tariff_text = f"""📗 ЕГЭ | {city} | {subject}
 
-📄 1 вариант — {EGE_PRICE_1}⭐ (было {EGE_OLD_1}⭐)
-📚 30 вариантов — {price30}⭐ (было {EGE_OLD_30}⭐)
-🔥 Все предметы — {EGE_PRICE_ALL}⭐ (было {EGE_OLD_ALL}⭐)
-
-⏰ Акция -50% до 20 апреля!
+📄 1 вариант — {EGE_PRICE_1}⭐
+📚 30 вариантов — {price30}⭐
+🔥 Все предметы — {EGE_PRICE_ALL}⭐
 
 Выбери тариф:"""
 
@@ -639,7 +599,6 @@ async def cb(callback: types.CallbackQuery):
         pay_text = f"""📗 ЕГЭ | {city} | {subject} | 30 вариантов
 
 💰 Стоимость: {price}⭐ = {rub}₽
-📉 Было: {EGE_OLD_30}⭐
 
 Выбери способ оплаты:"""
 
@@ -667,7 +626,6 @@ async def cb(callback: types.CallbackQuery):
         pay_text = f"""📗 ЕГЭ | {city} | Все предметы
 
 💰 Стоимость: {EGE_PRICE_ALL}⭐ = {rub}₽
-📉 Было: {EGE_OLD_ALL}⭐
 
 Выбери способ оплаты:"""
 
@@ -747,11 +705,9 @@ async def cb(callback: types.CallbackQuery):
 
         tariff_text = f"""📒 ВПР | {grade} | {city} | {subject}
 
-📄 1 вариант — {VPR_PRICE_1}⭐ (было {VPR_OLD_1}⭐)
-📚 30 вариантов — {price30}⭐ (было {VPR_OLD_30}⭐)
-🔥 Все предметы — {VPR_PRICE_ALL}⭐ (было {VPR_OLD_ALL}⭐)
-
-⏰ Акция -50% до 20 апреля!
+📄 1 вариант — {VPR_PRICE_1}⭐
+📚 30 вариантов — {price30}⭐
+🔥 Все предметы — {VPR_PRICE_ALL}⭐
 
 Выбери тариф:"""
 
@@ -775,7 +731,6 @@ async def cb(callback: types.CallbackQuery):
         pay_text = f"""📒 ВПР | {grade} | {city} | {subject} | 30 вариантов
 
 💰 Стоимость: {price}⭐ = {rub}₽
-📉 Было: {VPR_OLD_30}⭐
 
 Выбери способ оплаты:"""
 
@@ -804,7 +759,6 @@ async def cb(callback: types.CallbackQuery):
         pay_text = f"""📒 ВПР | {grade} | {city} | Все предметы
 
 💰 Стоимость: {VPR_PRICE_ALL}⭐ = {rub}₽
-📉 Было: {VPR_OLD_ALL}⭐
 
 Выбери способ оплаты:"""
 
@@ -961,7 +915,6 @@ async def cb(callback: types.CallbackQuery):
         price_ege = get_discount_price(user_id, EGE_PRICE_30)
         to_vip = max(5 - invited, 0)
         current_discount = min(invited * 20, 100)
-
         link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
 
         kb = [
@@ -1035,7 +988,7 @@ async def cb(callback: types.CallbackQuery):
                 f"👑 Админ-панель\n\n"
                 f"👥 Всего юзеров: {total}\n"
                 f"👑 VIP юзеров: {vip_count}\n\n"
-                f"💰 Статистика оплат (звёзды):\n"
+                f"💰 Статистика оплат:\n"
                 f"📦 Всего заказов: {total_orders}\n"
                 f"⭐ Всего звёзд: {total_stars}⭐\n"
                 f"💵 В рублях: ~{total_rub}₽",
@@ -1067,13 +1020,10 @@ async def cb(callback: types.CallbackQuery):
     elif callback.data == "back":
         waiting_variant.pop(user_id, None)
         broadcast_mode.pop(user_id, None)
-        welcome_text = """🏠 Главное меню
-
-🔥 АКЦИЯ: -50% на всё!
-⏰ Только до 20 апреля!
-
-Выбери нужный раздел:"""
-        await callback.message.edit_text(welcome_text, reply_markup=main_menu())
+        await callback.message.edit_text(
+            "🏠 Главное меню\n\nВыбери нужный раздел:",
+            reply_markup=main_menu()
+        )
 
     await callback.answer()
 
